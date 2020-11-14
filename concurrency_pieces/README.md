@@ -8,3 +8,9 @@ start thread = create thread object
 
 joined vs detached
 
+pass params to thread func
+1. 默认参数会拷贝，即使参数为引用，避免参数为悬垂指针
+2. 使用std::ref转换为引用形式
+3. 可传递成员函数指针作为线程函数，并提供对象指针作为第一个参数
+4. 使用std::move转移动态对象到线程中去
+
