@@ -1,6 +1,8 @@
 #include <iostream>
 #include <thread>
 #include <vector>
+#include <algorithm>
+#include <functional>
 
 using namespace std;
 
