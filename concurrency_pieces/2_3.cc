@@ -25,6 +25,8 @@ void f1() {
     t1 = thread(some_other_func); // t1, some_other_func
     thread t3;
     t3 = move(t2); // t2->t3, some_func
+    t3.join();
+    t1.join();
 }
 
 // 同thread_guard不同在于，scoped_thread拥有线程的所有权
