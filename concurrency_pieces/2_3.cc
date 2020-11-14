@@ -6,8 +6,8 @@
 
 using namespace std;
 
-void some_func();
-void some_other_func();
+void some_func() { };
+void some_other_func() { };
 
 struct func {
     int &i;
