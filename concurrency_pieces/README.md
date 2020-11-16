@@ -13,5 +13,6 @@
 
 ## *2020.11.16*
 * thread::hardware_concurrency() 返回能同时并发在一个程序中的线程数量
+* 线程标识类型, thread::id, 可通过 thread object member function get_id()获取，或者在当前线程中调用this_thread::get_id(), thread::id 可以拷贝，比较(可用作容器的键值)
 
 
