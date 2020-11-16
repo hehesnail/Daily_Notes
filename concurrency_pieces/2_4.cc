@@ -40,7 +40,7 @@ T parallel_accumulate(Iterator first, Iterator last, T init) {
         block_start = block_end;
     }
 
-    accumulate_block<Iterator, T>(block_start, end, results[num_threads - 1]);
+    accumulate_block<Iterator, T>()(block_start, last, results[num_threads - 1]);
     for_each(threads.begin(), threads.end(), mem_fn(&thread::join));
 
     return accumulate(results.begin(), results.end(), init);
@@ -49,8 +49,9 @@ T parallel_accumulate(Iterator first, Iterator last, T init) {
 
 int main() {
 
-    vector<int> v(100000);
+    vector<int> v(1000);
 
+    cout << v.size() << endl;
     for (int i = 0; i < v.size(); i++)
         v[i] = i + 1;
 
