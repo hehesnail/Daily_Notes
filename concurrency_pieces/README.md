@@ -15,4 +15,7 @@
 * thread::hardware_concurrency() 返回能同时并发在一个程序中的线程数量
 * 线程标识类型, thread::id, 可通过 thread object member function get_id()获取，或者在当前线程中调用this_thread::get_id(), thread::id 可以拷贝，比较(可用作容器的键值)
 
+## *2020.11.17*
+* <mutex>头文件中，std::mutex创建互斥量，使用lock()上锁，unlock()解锁。建议使用RAII语法模板类 std::lock_guard，构造时提供已锁互斥量，析构时进行解锁。
+
 
