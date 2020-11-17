@@ -68,7 +68,7 @@ print(tvm.lower(s, args, simple_mode=True))
 
 target = 'llvm'
 mod = tvm.build(s, args, target)
-print(mod.get_sources()[:500])
+#print(mod.get_sources()[:500])
 
 default_gflops = bench_vector_add_tvm(default, sizes, target)
 plot_gflops(sizes, [np_gflops, default_gflops], ['numpy', 'default'])
@@ -79,7 +79,7 @@ def parallel(n):
 
     return s, (A, B, C)
 
-s, args = default(64)
+s, args = parallel(64)
 print(tvm.lower(s, args, simple_mode=True))
 
 parallel_gflops = bench_vector_add_tvm(parallel, sizes, target)
@@ -94,7 +94,7 @@ def vectorized(n):
 
     return s, (A, B, C)
 
-s, args = default(64)
+s, args = vectorized(64)
 print(tvm.lower(s, args, simple_mode=True))
 
 vectorized_gflops = bench_vector_add_tvm(vectorized, sizes, target)
