@@ -1,5 +1,5 @@
 import d2ltvm
-import numpy as np 
+import numpy as np
 import tvm
 from tvm import te
 import os
@@ -28,18 +28,18 @@ def conv_pack(oc, ic, nh, nw, kh, kw, ph, pw, toc, tic):
     PackedX = te.compute(
         (ic // tic, nh+ph*2, nw+pw*2, tic),
         lambda ic_out, x, y, ic_in: PaddedX[ic_out*tic + ic_in, x, y],
-        name='PackedX' 
+        name='PackedX'
     )
     PackedK = te.compute(
         (oc // toc, ic // tic, kh, kw, tic, toc),
         lambda oc_out, ic_out, x, y, ic_in, oc_in: K[
-            oc_out * toc + oc_in, ic_out * tic + ic_in, x, y], 
+            oc_out * toc + oc_in, ic_out * tic + ic_in, x, y],
         name='PackedK'
     )
 
     return X, K, PaddedX, PackedX, PackedK
 
-X, _, _, _, PackedX, _ = conv_pack(c, c, n, n, 1, 1, 0, 0, tc, tc)
+X,  _, _, PackedX, _ = conv_pack(c, c, n, n, 1, 1, 0, 0, tc, tc)
 mod = tvm.build(te.create_schedule(PackedX.op), [X, PackedX])
 packed_x = tvm.nd.array(np.empty((c//tc, n, n, tc), dtype='float32'))
 mod(tvm.nd.array(x), packed_x)
@@ -69,7 +69,7 @@ def conv(oc, ic, nh, nw, kh, kw, ph, pw, sh, sw, toc, tic):
     PackedY = te.compute(
         (oc//toc, oh, ow, toc),
         lambda oc_out, x, y, oc_in: te.sum(
-            PackedX[ric_out, x*sh+rkh, y*sw+rkw, ric_in] * 
+            PackedX[ric_out, x*sh+rkh, y*sw+rkw, ric_in] *
             PackedK[oc_out, ric_out, rkh, rkw, ric_in, oc_in],
             axis=[ric_out, rkh, rkw, ric_in]), name='Y')
     # Unpack the results
