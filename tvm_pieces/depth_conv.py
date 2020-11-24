@@ -33,7 +33,7 @@ def depthwise_conv_pack(c, nh, nw, kh, kw, ph, pw, tc):
         name='PackedX')
     PackedK = te.compte(
         (c // tc, 1, kh, kw, 1, tc), 
-        lambda c_out, _, x, y, _, c_in: K[c_out*tc+c_in, 0, x, y], 
+        lambda c_out, _, x, y, __, c_in: K[c_out*tc+c_in, 0, x, y], 
         name='PackedK')
 
     return X, K, PaddedX, PackedX, PackedK
