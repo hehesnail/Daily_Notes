@@ -25,7 +25,7 @@ def optimized_max(size):
     sch, (X, Y) = default_max(size)
     te.schedule.AutoInlineInjective(sch)
     c, h, w = Y.op.axis[0:3]
-    fused = sch[Y.op].fuse(c, h)
+    fused = sch[Y].fuse(c, h)
     sch[Y].parallel(fused)
     sch[Y].vectorize(w)
     return sch, (X, Y)
@@ -46,7 +46,7 @@ def schedule_avg(size):
     sch, (X, Y) = default_avg(size)
     te.schedule.AutoInlineInjective(sch)
     c, h, w = Y.op.axis[0:3]
-    fused = sch[Y.op].fuse(c, h)
+    fused = sch[Y].fuse(c, h)
     sch[Y].parallel(fused)
     sch[Y].unroll(w)
     PoolSum = Y.op.input_tensors[0]
