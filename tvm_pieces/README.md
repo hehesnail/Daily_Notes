@@ -31,8 +31,7 @@
     * ***fuse***: fuse two consecutive axises of one computation.
     * ***reorder***: reorder the axises in the specified order.
     * ***bind***: bind a specified axis with a thread axis, often used in gpu programming.
-    * ***compute_at***: A schedule may consist of multiple operators, tvm by default will compute at root which may result in redundant computation. 
-    * ***compute_at*** can move the computation of one operator to the axis of computation of another computation.
+    * ***compute_at***: A schedule may consist of multiple operators, tvm by default will compute at root which may result in redundant computation. It can move the computation of one operator to the axis of computation of another computation.
     * ***compute_inline***: mark one stage as inline, the body of computation will be expanded and inserted at the address where the tensor is required.
     * ***compute_root***: move the computation of one stage to the root.
     * **The schedule primitives are quite like Halide**.
@@ -41,3 +40,6 @@
     * tvm.target.register_intrin_rule. 
 
 * *scan* operator to describle the symbolic loop. *s_state*: the placeholder describles the transition state of the scan. *s_init*: how to initialize the first k timesteps. *s_update*: how to update the value at timestep t. The *scan* takes in state placeholder, initial value and update description. Multi-stage scan cell and multiple states.
+
+## *2020.11.28*
+* ***tvm.te.hybrid***: Hybrid programming apis of tvm python package, maps a subset python to HalideIR. So far, it is a text format dedicated to HalideIR phase0. *Funcs:* build, decorate, script, source_to_op. *tvm.te.hybrid* to indicate a function is a hybrid function.
