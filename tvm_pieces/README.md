@@ -52,3 +52,4 @@
     * Math intrinsics: log, exp, sigmoid, tanh, power, popcount.
     * Array allocation: allocation(shape, type, share/local) to declare an array buffer. Under construction.
     * Thread bind and Assert statement.
+* External Tensor function: use *te.extern* to add an extern array function call. In the extern call, we declare the shape of output tensors. In the second argument we provide the list of inputs.
