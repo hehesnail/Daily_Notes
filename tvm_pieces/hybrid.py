@@ -7,7 +7,7 @@ import numpy as np
 
 @tvm.te.hybrid.script
 def outer_product(a, b):
-    c = te.placeholder((100, 99), 'float32')
+    c = output_tensor((100, 99), 'float32')
     for i in range(a.shape[0]):
         for j in range(b.shape[0]):
             c[i, j] = a[i] * b[j]

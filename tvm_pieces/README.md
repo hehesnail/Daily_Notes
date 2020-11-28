@@ -43,3 +43,12 @@
 
 ## *2020.11.28*
 * ***tvm.te.hybrid***: Hybrid programming apis of tvm python package, maps a subset python to HalideIR. So far, it is a text format dedicated to HalideIR phase0. *Funcs:* build, decorate, script, source_to_op. *tvm.te.hybrid* to indicate a function is a hybrid function.
+    * Pass tvm data structures: Tensor, Var, Expr .*Imm, tvm.container.Array
+    * Tuning: loop annotations (unroll, parallel, vectorize, bind), loop manipulation (split, fuse, reorder)
+    * Loops: use range (aka serial,unroll,parallel and vectorize), const_range
+    * Variables: All the mutable variables will be lowered to an array with size 1. It regards the first store of a variable as its declaration. Currently, the type of variable should be either float32 or int32.
+    * Attributes: only shape and dtype attribute are supported, only constant-indexed access is supported.
+    * Conditional statement and expression: if cond1 and cond2 and cond3: ... else: ...; No True or False keyword supported.
+    * Math intrinsics: log, exp, sigmoid, tanh, power, popcount.
+    * Array allocation: allocation(shape, type, share/local) to declare an array buffer. Under construction.
+    * Thread bind and Assert statement.
