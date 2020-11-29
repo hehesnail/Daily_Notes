@@ -59,4 +59,5 @@
     * 1). Define the search space: @autotvm.template, get config object: cfg = autotvm.get_config(), cfg.define_split, cfg.define_reorder etc. then apply the configEntity.
     * 2). Search through the space: RandomTuner, GridSearchTuner, GATuner, XGBTuner. *First*, create a tunning task. *Second*, define how to measure (autotvm.measure_option) the generated code and pick a tuner, build and run two steps. *Finally*, apply history best from teh cache file and check its correctness by autotvm.apply_history_best.
 * Auto-scheduler:
-    
+    * Template-based autotvm relies on manual templates to define the search space.auto-scheduler does not require any templates. The auto-scheduler can automatically generate a large search space and find a good schedule in the space.
+    * Define the computation and decorate it with @auto_scheduler.register_workload, the auto-scheduler can get the whole computational graph. Create the search task by *tvm.auto_scheduler.create_task* and set parameters for auto-scheduler by *auto_scheduler.TuningOptions*. Run the serach via *auto_scheduler.auto_schedule*. After schedule, can laod the bset schedule from record file by *auto_scheduler.load_best*.
