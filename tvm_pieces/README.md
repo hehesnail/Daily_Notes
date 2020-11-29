@@ -53,3 +53,10 @@
     * Array allocation: allocation(shape, type, share/local) to declare an array buffer. Under construction.
     * Thread bind and Assert statement.
 * External Tensor function: use *te.extern* to add an extern array function call. In the extern call, we declare the shape of output tensors. In the second argument we provide the list of inputs.
+
+## *2020.11.29*
+* Auto-tuner: 
+    * 1). Define the search space: @autotvm.template, get config object: cfg = autotvm.get_config(), cfg.define_split, cfg.define_reorder etc. then apply the configEntity.
+    * 2). Search through the space: RandomTuner, GridSearchTuner, GATuner, XGBTuner. *First*, create a tunning task. *Second*, define how to measure (autotvm.measure_option) the generated code and pick a tuner, build and run two steps. *Finally*, apply history best from teh cache file and check its correctness by autotvm.apply_history_best.
+* Auto-scheduler:
+    
