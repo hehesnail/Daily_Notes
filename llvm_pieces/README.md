@@ -10,5 +10,6 @@
     * 在entry基本块中添加对应的IR指令，也可使用IRBuilder来构建IR指令
     * main函数中调用函数创建Module，并使用verifyModule()验证IR构造，通过WriteBitcodeToFile函数将模块的位码写入磁盘
 ### *2020.12.6*
-* LLVM 10.0同书中示例3.4的差异还是非常大的，基本都改了一套接口，很多类的定义也完全变掉...总而言之，进行修改还是非常蛋疼的事...
-  
+* Add IR generator LLVM 10.0同书中示例3.4的差异还是非常大的，基本都改了一套接口，很多类的定义也完全变掉...总而言之，进行修改还是非常蛋疼的事...
+* Pass类为实现代码优化的主要类，常见子类：ModulePass(作用于整个模块), FunctionPass(一次处理一个函数,需重载runOnFunction), BasicBlockPass(作用在每个基本块)，继承Pass子类写自定义pass后RegisterPass
+* LLVM后端：通用API抽象后端任务并特化为不同平台后端；主要流程：指令选择(SelectionDAG)，指令调度(pre-register allocation and post-register allocation)，寄存器分配，代码输出；CodeGen, MC, TableGen and Target.
