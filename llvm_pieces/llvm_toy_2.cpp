@@ -310,9 +310,122 @@ static unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec, unique_ptr<ExprAST> LHS) 
 /// expression
 ///   ::= primary binoprhs
 ///
+static unique_ptr<ExprAST> ParseExpression() {
+    auto LHS = ParsePrimary();
+    if (!LHS) {
+        return nullptr;
+    }
 
+    return ParseBinOpRHS(0, move(LHS));
+}
+
+/// prototype
+///   ::= id '(' id* ')'
+unique_ptr<PrototypeAST> ParsePrototype() {
+    if (CurTok != tok_identifier) {
+        return LogErrorP("Expected function name in prototype");
+    }
+
+    string FnName = IdentifierStr;
+    getNextToken();
+
+    if (CurTok != '(') {
+        return LogErrorP("Expected ( in prototype");
+    }
+
+    vector<string> ArgNames;
+    while(getNextToken() == tok_identifier) {
+        ArgNames.push_back(IdentifierStr);
+    }
+
+    if (CurTok != ')') {
+        return LogErrorP("Expected ) in prototype");
+    }
+
+    getNextToken(); //eat )
+
+    return make_unique<PrototypeAST>(FnName, move(ArgNames));
+}
+
+/// definition ::= 'def' prototype expression
+static unique_ptr<FunctionAST> ParseDefinition() {
+    getNextToken(); // eat def
+    auto Proto = ParsePrototype();
+    if (!Proto) {
+        return nullptr;
+    }
+
+    if (auto E = ParseExpression()) {
+        return make_unique<FunctionAST>(move(Proto), move(E));
+    }
+
+    return nullptr;
+}
+
+/// toplevelexpr ::= expression
+static unique_ptr<FunctionAST> ParseTopLevelExpr() {
+    if (auto E = ParseExpression()) {
+        auto Proto = make_unique<PrototypeAST>("__anon_expr", vector<string>());
+        
+        return make_unique<FunctionAST>(move(Proto), move(E));
+    }
+
+    return nullptr;
+}
+
+/// external ::= 'extern' prototype
+static unique_ptr<PrototypeAST> ParseExtern() {
+    getNextToken(); // eat extern
+
+    return ParsePrototype();
+}
+
+/* Top level parser */
+static void HandleDefinition() {
+    if (ParseDefinition()) {
+        fprintf(stderr, "Parsed a function definition\n");
+    } else {
+        getNextToken(); // skip the token for error recovery
+    }
+}
+
+static void HandleExtern() {
+    if (ParseExtern()) {
+        fprintf(stderr, "Parsed an extern\n");
+    } else {
+        getNextToken(); //skip the token for error reconvery
+    }
+}
+
+static void HandleTopLevelExression() {
+    if (ParseTopLevelExpr()) {
+        fprintf(stderr, "Parsed a top level expr\n");
+    } else {
+        getNextToken(); 
+    }
+}
+
+/// top ::= definition | external | expression | ';'
 static void MainLoop() {
-    // TODO
+    while(true) {
+        fprintf(stderr, "ready> ");
+        switch (CurTok) {
+            case tok_eof:
+                return;
+            case  ';':
+                getNextToken();
+                break;
+            case tok_def:
+                HandleDefinition();
+                break;
+            case tok_extern:
+                HandleExtern();
+                break;
+            default:
+                HandleTopLevelExression();
+                break;
+        }
+    }
 }
 
 int main() {
