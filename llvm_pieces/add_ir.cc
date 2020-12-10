@@ -75,5 +75,8 @@ int main() {
     WriteBitcodeToFile(*Mod, Out->os());
     Out->keep();
 
+    // Print out all the generated codes
+    Mod->print(errs(), nullptr);
+
     return 0;
 }
