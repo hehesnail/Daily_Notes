@@ -475,8 +475,10 @@ Function *PrototypeAST::codegen() {
 
     unsigned idx = 0;
     for (auto &Arg : F->args()) {
-        Arg.setName(Args[idx]);
+        Arg.setName(Args[idx++]);
     }
+
+    return F;
 }
 
 Function *FunctionAST::codegen() {
