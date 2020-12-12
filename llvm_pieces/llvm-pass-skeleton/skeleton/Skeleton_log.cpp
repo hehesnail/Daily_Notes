@@ -33,9 +33,9 @@ namespace {
                         // Insert a call to our function
                         Value* args[] = {op};
                         builder.CreateCall(logFunc, args);
+                        
+                        return true;
                     }
-
-                    return true;
                 }
             }
 
