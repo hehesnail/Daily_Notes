@@ -202,12 +202,12 @@ static int GetTokPrecedence() {
 
 /// LogError* - These are little helper functions for error handling.
 unique_ptr<ExprAST> LogError(const char *Str) {
-  fprintf(stderr, "Error: %s\n", Str);
-  return nullptr;
+    fprintf(stderr, "Error: %s\n", Str);
+    return nullptr;
 }
 unique_ptr<PrototypeAST> LogErrorP(const char *Str) {
-  LogError(Str);
-  return nullptr;
+    LogError(Str);
+    return nullptr;
 }
 
 static unique_ptr<ExprAST> ParseExpression();
@@ -503,7 +503,7 @@ Function *FunctionAST::codegen() {
     if (Value *RetVal = Body->codegen()) {
         Builder->CreateRet(RetVal);
         verifyFunction(*TheFunction);
-       return TheFunction;
+        return TheFunction;
     }
 
     TheFunction->eraseFromParent();
