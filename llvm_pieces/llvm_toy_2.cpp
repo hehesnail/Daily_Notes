@@ -1,3 +1,4 @@
+#include "KaleidoscopeJIT.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
@@ -6,11 +7,19 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/IR/Value.h"
+#include "llvm/Support/TargetSelect.h"
+#include "llvm/Transforms/InstCombine/InstCombine.h"
+#include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Scalar/GVN.h"
+#include <algorithm>
+#include <cassert>
 #include <cctype>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <map>
@@ -21,6 +30,7 @@
 
 using namespace std;
 using namespace llvm;
+using namespace llvm::orc;
 
 /* The lexer*/
 enum Token {
@@ -405,9 +415,30 @@ static unique_ptr<LLVMContext> TheContext;
 static unique_ptr<Module> TheModule;
 static unique_ptr<IRBuilder<>> Builder;
 static map<string, Value* > NamedValues;
+static unique_ptr<legacy::FunctionPassManager> TheFPM;
+static unique_ptr<KaleidoscopeJIT> TheJIT;
+static map<string, unique_ptr<PrototypeAST>> FunctionProtos;
+static ExitOnError ExitOnErr;
+
 
 Value *LogErrorV(const char *Str) {
     LogError(Str);
+    return nullptr;
+}
+
+Function *getFunction(string Name) {
+    // First, see if the function has already been added to the current modules
+    if (auto *F = TheModule->getFunction(Name)) {
+        return F;
+    }
+
+    // If not, chech whether we can codegen the declaration from some existing prototype
+    auto FI = FunctionProtos.find(Name);
+    if (FI != FunctionProtos.end()) {
+        return FI->second->codegen();
+    }
+
+    // no exsiting prototype, return null
     return nullptr;
 }
 
