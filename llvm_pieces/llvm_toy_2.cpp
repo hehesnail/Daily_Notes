@@ -418,8 +418,6 @@ static map<string, Value* > NamedValues;
 static unique_ptr<legacy::FunctionPassManager> TheFPM;
 static unique_ptr<KaleidoscopeJIT> TheJIT;
 static map<string, unique_ptr<PrototypeAST>> FunctionProtos;
-static ExitOnError ExitOnErr;
-
 
 Value *LogErrorV(const char *Str) {
     LogError(Str);
@@ -515,7 +513,7 @@ Function *PrototypeAST::codegen() {
 Function *FunctionAST::codegen() {
     auto &P = *Proto;
     FunctionProtos[Proto->getName()] = move(Proto);
-    Function *TheFunction = getFunction(P->getName());
+    Function *TheFunction = getFunction(P.getName());
 
     if (!TheFunction) {
         return nullptr;
@@ -541,11 +539,11 @@ Function *FunctionAST::codegen() {
 }
 
 /* Top level parser and JIT Driver*/
-static void InitializeMoudleAndPassManager() {
+static void InitializeModuleAndPassManager() {
     // Open a new context and module
     TheContext = make_unique<LLVMContext>();
     TheModule = make_unique<Module>("my cool jit", *TheContext);
-    TheModule->setDataLayout(TheJIT->getDataLayout());
+    TheModule->setDataLayout(TheJIT->getTargetMachine().createDataLayout());
 
     //Create a new builder for the module
     Builder = make_unique<IRBuilder<>>(*TheContext);
@@ -571,10 +569,8 @@ static void HandleDefinition() {
             fprintf(stderr, "read fucntion definition");
             FnIR->print(errs());
             fprintf(stderr, "\n");
-            ExitOnErr(TheJIT->addModule(
-                ThreadSafeModule(move(TheModule), move(TheContext))
-            ));
-            InitializeMoudleAndPassManager();
+            TheJIT->addModule(move(TheModule));
+            InitializeModuleAndPassManager();
         }
     } else {
         getNextToken();
@@ -597,24 +593,22 @@ static void HandleExtern() {
 static void HandleTopLevelExression() {
     if (auto FnAST = ParseTopLevelExpr()) {
         if (auto *FnIR = FnAST->codegen()) {
-            // Create a ResourceTracker to track JIT'd memory allocated to our
-            // anonymous expression -- that way we can free it after executing.
-            auto RT = TheJIT->getMainJITDylib().createResourceTracker();
-
-            auto TSM = ThreadSafeModule(std::move(TheModule), std::move(TheContext));
-            ExitOnErr(TheJIT->addModule(std::move(TSM), RT));
+            // JIT the module containing the anonymous expression, keeping a handle so
+            // we can free it later.
+            auto H = TheJIT->addModule(std::move(TheModule));
             InitializeModuleAndPassManager();
 
             // Search the JIT for the __anon_expr symbol.
-            auto ExprSymbol = ExitOnErr(TheJIT->lookup("__anon_expr"));
+            auto ExprSymbol = TheJIT->findSymbol("__anon_expr");
+            assert(ExprSymbol && "Function not found");
 
             // Get the symbol's address and cast it to the right type (takes no
             // arguments, returns a double) so we can call it as a native function.
-            double (*FP)() = (double (*)())(intptr_t)ExprSymbol.getAddress();
+            double (*FP)() = (double (*)())(intptr_t)cantFail(ExprSymbol.getAddress());
             fprintf(stderr, "Evaluated to %f\n", FP());
 
             // Delete the anonymous expression module from the JIT.
-            ExitOnErr(RT->remove());
+            TheJIT->removeModule(H);
         }
     } else {
         getNextToken();
@@ -682,9 +676,9 @@ int main() {
     getNextToken();
 
     // Make the module, which holds all the codes
-    TheJIT = ExitOnErr(KaleidoscopeJIT::Create());
+    TheJIT = std::make_unique<KaleidoscopeJIT>();
 
-    InitializeMoudleAndPassManager();
+    InitializeModuleAndPassManager();
 
     // Run the main "interpreter loop" now.
     MainLoop();
