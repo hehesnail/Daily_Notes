@@ -43,3 +43,18 @@
 
 ### *2021.1.5*
 * LLVM IR生成变量探索，写了几个基本的测试函数：变量赋值，简单加法函数(返回参数的和，无其他局部变量)，数组访问。每个都会使用alloca instruction来在stack frame上申请空间，并进行变量的store 和 load操作。变量赋值：alloca mem, store constant value, ret。导致这个原因之一也是因为函数里内的为局部变量。简单加法函数还是会先alloca, add, ret. 数组访问，就是每次alloca一片空间，根据偏移load对应的数据即可。LLVM Module中管理a list of globals variables, a list of functions, a list of libraries, a symbol table还有target的特性。从其构造函数可以看出，主要需要提供名字和context来保证线程安全。而BasicBlock，Function其实不是LLVM Module所必需的，对于IRBuilder来说，其可以直接依赖于Context，常见用法是针对BasicBlock创建，因为BasicBlock是一推指令集合。将变量创建为全局变量，则就不需在创建Func及BasicBlock，可以利用extern在其他文件中直接访问到。
+
+### *2021.1.6*
+* LLVM Programmer's Manual - *Important and useful LLVM APIs*
+    * isa<>, cast<>, dyn_cast<> templates: llvm源码使用了大量custom form of RTTI,且无需类必须含有虚函数表。这几个定义在llvm/Support/Casting.h下。参考https://llvm.org/docs/HowToSetUpLLVMStyleRTTI.html 使自定义class支持这几个模板。
+        * isa<>: 判断ref或者pointer指向对象是否为特定class的实例。
+        * cast<>: "check cast" operation, 将基类指针or引用转为派生类，若其不是正确类型的实例则产生assertion failuer。
+        * dyn_cast<>: "check cast" operation, 不接收引用，只接收指针，和C++ dyn_cast<> 功能很类似
+        * isa_and_nonnull<>: 类似于isa<>,不过接收空指针输入.
+        * cast_or_null<>: 类似于cast<>, 不过接收空指针输入.
+        * dyn_cast_or_null<>: 类似于 dyn_cast<>, 不过接收空指针输入.
+    * Passing strings(StringRef and Twine classes): 针对std::string中会产生heap allocation,因此实现对应的类来高效地传递字符串.
+        * StringRef: 支持类似string的操作,但不需要堆分配, 主要用于参数传递, 并且passed by value.
+        * Twine: 主要用于高效的处理接收 拼接的字符串, 为轻量级的rope数据结构并指向临时对象,可通过C string, std::string, StringRef构建.
+        * StringRef 和 Twine对象指向外部内存, 因此, 最好仅在定义需要高效接收or拼接字符串的时候使用.
+
