@@ -91,9 +91,15 @@
 * ***analyze the TIR structure, especially TIR/IR/expr.h, buffer.h, var.h***
     * detailed info written in notebook, tobe summarized.
 
-### *2021.1.19*
+### *2021.1.18*
 * ***The TIR structure***
     * 重新扫了下object, objectptr, objectref, 后续又看了下 tir/expr下的一些东西，对于Var产生兴趣，每个Var由其地址所唯一区分，之前被误导了淦，在Allocate, Let, For, LetStmt中是每个Var仅被bind一次，之前看成只在这几个中bind。。。
     * 结合llvm codegen看，这几个Node会维护一个 VarNode* -> llvm::Value* 的var_map表，对于Let, For, LetStmt的Var 基本是通过Make_value得到，Allocate则会调用到 llvm irbuilder 的 alloca 并convert成指针类型，其实这个过程就将抽象的Var 转为了具体的 数 或者 内存指针。
     * 在compute时候，会根据compute传入的参数进行解析，shape被解析为 vector<IterVar> axis 同时从中会获取到 类型为 vector<Var> 的args参数，而计算函数FCompute为函数模板对象，根据args调用，则会得到 类型为PrimExpr body，即内部的计算描述。  
     * 目前来看，tir这块理解最欠缺的是内存管理相关的IR，之后着重分析。
+
+### *2021.1.19*
+* *** TIR Buffer ***
+    * 看了下TIR中Buffer的管理，因利用IRBuilder将Tensor创建buffer_ptr时出错。其实因为Tensor会在lower的过程中最后转换为Buffer，因此这种行为相当于将lower过程中搞得提前到了Tensor赋值的过程中来，故报错，若非要解决这个问题只能根据Tensor的dtype, shape重新构建Buffer才行。
+    * TIR Buffer在 C++端(src/tir/ir/buffer.cc, include/tir/buffer.h) 和 Python端(python/tvm/tir/buffer.py)行为基本一致，因Python Buffer class 直接调用C++ register的类构造函数 以及 成员函数，其中decl_buffer也是直接调用C++端的函数。BufferNode中基本三个member为 Var data -> 指向数据的指针，DataType dtype -> 数据类型 以及 Array<PrimExpr> shape -> buffer的shape大小。那关于Buffer的内存分配，看了下codegen_llvm.cc中，llvm的IRBuilder只有在Allocate Stmt的时候，才会调用 CreateAlloca 即分配内存，故Buffer的内存管理主要还是由 lower的过程当中，适时地插入Allocate Stmt时才完成。那么关于 Store / Load 基本是先获取到 对应Buffer，后利用 llvm IRBuilder 创建指针访问。
+    * python端 ir_builder 使更容易的获取buffer元素 ---> BufferVar 类，类构建irbuilder, buffer_var(Var), content_type；通过__setitem__ (emit Store) 和 __getitem__ (emit Load)来创建IR，同时注意 buffer_ptr函数接收一个Buffer对象，将其 data 和 dtype提取并创建BufferVar对象，就可以A[i]这种方式获取Buffer中的元素，免去了很多麻烦。pointer函数根据类型先创建 Var，后创建 BufferVar绑定到刚创建的Var上。allocate函数会直接emit allocate stmt. 
