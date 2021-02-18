@@ -103,3 +103,12 @@
     * 看了下TIR中Buffer的管理，因利用IRBuilder将Tensor创建buffer_ptr时出错。其实因为Tensor会在lower的过程中最后转换为Buffer，因此这种行为相当于将lower过程中搞得提前到了Tensor赋值的过程中来，故报错，若非要解决这个问题只能根据Tensor的dtype, shape重新构建Buffer才行。
     * TIR Buffer在 C++端(src/tir/ir/buffer.cc, include/tir/buffer.h) 和 Python端(python/tvm/tir/buffer.py)行为基本一致，因Python Buffer class 直接调用C++ register的类构造函数 以及 成员函数，其中decl_buffer也是直接调用C++端的函数。BufferNode中基本三个member为 Var data -> 指向数据的指针，DataType dtype -> 数据类型 以及 Array<PrimExpr> shape -> buffer的shape大小。那关于Buffer的内存分配，看了下codegen_llvm.cc中，llvm的IRBuilder只有在Allocate Stmt的时候，才会调用 CreateAlloca 即分配内存，故Buffer的内存管理主要还是由 lower的过程当中，适时地插入Allocate Stmt时才完成。那么关于 Store / Load 基本是先获取到 对应Buffer，后利用 llvm IRBuilder 创建指针访问。
     * python端 ir_builder 使更容易的获取buffer元素 ---> BufferVar 类，类构建irbuilder, buffer_var(Var), content_type；通过__setitem__ (emit Store) 和 __getitem__ (emit Load)来创建IR，同时注意 buffer_ptr函数接收一个Buffer对象，将其 data 和 dtype提取并创建BufferVar对象，就可以A[i]这种方式获取Buffer中的元素，免去了很多麻烦。pointer函数根据类型先创建 Var，后创建 BufferVar绑定到刚创建的Var上。allocate函数会直接emit allocate stmt. 
+  
+### *2021.2.19*
+* ***Storage Flatten Pass***
+    * 这个pass的主要作用是将 multi-dim 的访问 变换为 1-d buffer array的访问StorageFlattener 构造时针对 primfunc 外部传入的 buffer_map (Var-Buffer) 构造内部 buf_map_ (Buffer-BufferEntry)继承自  StmtExprMutator，重载其中对于 Stmt 以及 Expr的访问，对于primfunc中的body进行变换；
+    * 在经过 schedule_ops 及 schedule_postproc_to_primfunc两个pass之后，body的形式在 MakePipeline的时候在每个 OP 对应的外层部分一般为 attr_stmt realize_scope；ProducerRealizeNode，ProducerStoreNode，ProducerLoadNode变换为对应的 BufferRealize, BufferStore, BufferLoad；
+    * 对于 AttrStmt解析，realize_scope (每个op均有)，获取stage 所对应的 storage_scope后对body进行递归分析，因为在MakePipeline的时候，每个producer的最外层为realize_scope，因此定会对当前op中所对应的stmt body进行遍历，主要针对其中的 BufferRealizeNode；
+    * 对于 BufferRealizeNode，若对应的buffer在 buf_map_中找到(首次为外部buf_map)，则返回即可，因默认外部buffer 已经分配好；否则创建BufferEntry，获取对应bounds (extent)创建shape，获取storage_scope；计算buffer aligmnet信息前会先依据shape计算allocate的const_size(即shape乘积) 后获取 align对齐(默认128字节对齐)；而dim级别的align信息仅针对compute，此之前对 buffer_dim_align 的解析，可以获取到dim_info_(map)后对每一维度创建strides(其他op可为空)，依据之前信息创建新的Buffer，并添加进入 buf_map_中；并创建对应的 AllocateNode；从这个角度来看，BufferRealizeNode主要目的在于创建 整个Pipeline中的 Buffer，总感觉放在 StorageFlatten Pass中怪怪的。
+    * 对于 BufferLoadNode，check buffer存在后对于bounds和indices对于Index重新变换，之后主要返回Buffer vload (tir::Load)，Flatten体现，计算偏移通过 BufferOffset -> ElemOffset；同理对于BufferStoreNode，也是一样的流程，不过为 Buffer vstore (tir::Store)，偏移计算也是通过 BufferOffset -> ElemOffset将多维访问变为一维；
+    * 对于VarNode，LoadNode，StoreNode则判断是否需要对其中 Var进行 remap(仅当ExternOp时需要)，不需要则直接返回即可；
