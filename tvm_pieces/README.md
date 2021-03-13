@@ -110,9 +110,14 @@
     * 在经过 schedule_ops 及 schedule_postproc_to_primfunc两个pass之后，body的形式在 MakePipeline的时候在每个 OP 对应的外层部分一般为 attr_stmt realize_scope；ProducerRealizeNode，ProducerStoreNode，ProducerLoadNode变换为对应的 BufferRealize, BufferStore, BufferLoad；
     * 对于 AttrStmt解析，realize_scope (每个op均有)，获取stage 所对应的 storage_scope后对body进行递归分析，因为在MakePipeline的时候，每个producer的最外层为realize_scope，因此定会对当前op中所对应的stmt body进行遍历，主要针对其中的 BufferRealizeNode；
     * 对于 BufferRealizeNode，若对应的buffer在 buf_map_中找到(首次为外部buf_map)，则返回即可，因默认外部buffer 已经分配好；否则创建BufferEntry，获取对应bounds (extent)创建shape，获取storage_scope；计算buffer aligmnet信息前会先依据shape计算allocate的const_size(即shape乘积) 后获取 align对齐(默认128字节对齐)；而dim级别的align信息仅针对compute，此之前对 buffer_dim_align 的解析，可以获取到dim_info_(map)后对每一维度创建strides(其他op可为空)，依据之前信息创建新的Buffer，并添加进入 buf_map_中；并创建对应的 AllocateNode；从这个角度来看，BufferRealizeNode主要目的在于创建 整个Pipeline中的 Buffer，总感觉放在 StorageFlatten Pass中怪怪的。
-    * 对于 BufferLoadNode，check buffer存在后对于bounds和indices对于Index重新变换，之后主要返回Buffer vload (tir::Load)，Flatten体现，计算偏移通过 BufferOffset -> ElemOffset；同理对于BufferStoreNode，也是一样的流程，不过为 Buffer vstore (tir::Store)，偏移计算也是通过 BufferOffset -> ElemOffset将多维访问变为一维；
+    * 对于 BufferLoadNode，check buffer存在后对于bounds和indices对于Index重新变换，之后主要返回Buffer vload (tir::Load)，Flatten体现，计算偏移通过 BufferOffset -> ElemOffset；同理对于BufferStoreNode，也是一样的流程，不过为 Buffer vstr::Store)，偏移计算也是通过 BufferOffset -> ElemOffset将多维访问变为一维；
     * 对于VarNode，LoadNode，StoreNode则判断是否需要对其中 Var进行 remap(仅当ExternOp时需要)，不需要则直接返回即可；
 ### *2021.3.7*
 * ***Some notes***
     * Writing a Customized Pass: https://tvm.apache.org/docs/tutorials/dev/low_level_custom_pass.html#sphx-glr-tutorials-dev-low-level-custom-pass-py以前还真没注意怎么在 python 端写 tvm lower pass的，基本还是和 cxx side 差不多， python 端更加不灵活吧stmt_functor 中 post_order_visit 获取想 modify 的 IR， stmt_functor.ir_transform进行变换， stmt_functor.substitue替换，将 Pass可通过在 tvm.transform.PassContext 中添加
     * 从 compile models来看，首先是 relay.frontend.from_xxx， 后创建 graph executor， relay.build_module.create_executor那其实 第一步主要就是解析 不同前端框架 保存模型参数的一个过程，然后匹配成 relay_func 的格式；其中不同前端中的OP(conv, pool)之类的会被的等价转换为 relay 中 op，relay中 build_module过程中调用cxx端的 RelayBuildModule 中 build，后调用  BuildRelay， 其中会创建 graph_codegen 通过  _GraphRuntimeCodegen 创建  GraphRuntimeCodegenModule 调用其中 Codegen方法，在 visit 其中 CallNode时候，_CompileEngineLower，其中会根据 OpStrategy完成对不同OP实现的选择
+### *2021.3.13*
+* ***Tensor IR First Impression***
+    * 粗略地看了下RFC(https://discuss.tvm.apache.org/t/rfc-tensorir-a-schedulable-ir-for-tvm/7872)上的讨论, TensorIR是TIR可优化的增强版, 主要提出 Block statement structure来warp IR, Block会作为最小的scheduling and tensorization的单元，其中包含 Iter Vars, Block读写region, allocated buffer 以及 body stmt. 从这点来看，是在已有的TIR的基础上新增了更加粗粒度的访问块，在Block unit中附加上schedule所需的信息，从而实现直接对于TIR的schedule；
+    * 几点好处: 1). schedule直接作用在 TIR, 而不需要通过在schedule tree调度后拼接 stmt形成 TIR，TF/PyTorch/ONNX -> Relay -> TIR -> schedule -> TIR -> scheudle -> TIR -> C++/CUDA; 2). 更加灵活的描述，相对于TE; 3). 更好地支持 memory hierarchy 以及 execution hierarchy; 4). 对于 tensorization 支持更加灵活; 5). 可以在每次schedule对于IR进行验证
+    * 目前来看, 关于Block 的 PR已经提了;
