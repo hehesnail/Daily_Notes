@@ -112,6 +112,7 @@
     * 对于 BufferRealizeNode，若对应的buffer在 buf_map_中找到(首次为外部buf_map)，则返回即可，因默认外部buffer 已经分配好；否则创建BufferEntry，获取对应bounds (extent)创建shape，获取storage_scope；计算buffer aligmnet信息前会先依据shape计算allocate的const_size(即shape乘积) 后获取 align对齐(默认128字节对齐)；而dim级别的align信息仅针对compute，此之前对 buffer_dim_align 的解析，可以获取到dim_info_(map)后对每一维度创建strides(其他op可为空)，依据之前信息创建新的Buffer，并添加进入 buf_map_中；并创建对应的 AllocateNode；从这个角度来看，BufferRealizeNode主要目的在于创建 整个Pipeline中的 Buffer，总感觉放在 StorageFlatten Pass中怪怪的。
     * 对于 BufferLoadNode，check buffer存在后对于bounds和indices对于Index重新变换，之后主要返回Buffer vload (tir::Load)，Flatten体现，计算偏移通过 BufferOffset -> ElemOffset；同理对于BufferStoreNode，也是一样的流程，不过为 Buffer vstr::Store)，偏移计算也是通过 BufferOffset -> ElemOffset将多维访问变为一维；
     * 对于VarNode，LoadNode，StoreNode则判断是否需要对其中 Var进行 remap(仅当ExternOp时需要)，不需要则直接返回即可；
+    * 对于 ExternOp则调用 handle_bind_scope进行处理，因为其在Provide的时候会对Op 传入的外部Buffer和该Op output tensor 和 input tensor 添加 buffer_bind_scope, 经过先前的处理, tensor已经为对应的buffer, 主要作用是先做 begin, extents的变换，后将对应buffer make Slice为对应的 shape 后调用 ArgBinder 对于将 buffer 中 Var bind 至 在buf_map中找到的 target buffer对应的 Var上，具体其实是在var_remap中添加对应 Var的替换关系后，Visit AttrStmt中的 body, 而 body中的 VarNode, LoadNode, StoreNode中对应的 Var则会被替换为对应的 target buffer 的 Var, 对 buffer_bind_scope AttrStmt处理完成之后，则清除掉对应的 var_remap关系；
 ### *2021.3.7*
 * ***Some notes***
     * Writing a Customized Pass: https://tvm.apache.org/docs/tutorials/dev/low_level_custom_pass.html#sphx-glr-tutorials-dev-low-level-custom-pass-py以前还真没注意怎么在 python 端写 tvm lower pass的，基本还是和 cxx side 差不多， python 端更加不灵活吧stmt_functor 中 post_order_visit 获取想 modify 的 IR， stmt_functor.ir_transform进行变换， stmt_functor.substitue替换，将 Pass可通过在 tvm.transform.PassContext 中添加
@@ -121,3 +122,6 @@
     * 粗略地看了下RFC(https://discuss.tvm.apache.org/t/rfc-tensorir-a-schedulable-ir-for-tvm/7872)上的讨论, TensorIR是TIR可优化的增强版, 主要提出 Block statement structure来warp IR, Block会作为最小的scheduling and tensorization的单元，其中包含 Iter Vars, Block读写region, allocated buffer 以及 body stmt. 从这点来看，是在已有的TIR的基础上新增了更加粗粒度的访问块，在Block unit中附加上schedule所需的信息，从而实现直接对于TIR的schedule；
     * 几点好处: 1). schedule直接作用在 TIR, 而不需要通过在schedule tree调度后拼接 stmt形成 TIR，TF/PyTorch/ONNX -> Relay -> TIR -> schedule -> TIR -> scheudle -> TIR -> C++/CUDA; 2). 更加灵活的描述，相对于TE; 3). 更好地支持 memory hierarchy 以及 execution hierarchy; 4). 对于 tensorization 支持更加灵活; 5). 可以在每次schedule对于IR进行验证
     * 目前来看, 关于Block 的 PR已经提了;
+### *2021.3.14*
+* ***Storage Rewrite Pass***
+    * Placeholder
