@@ -128,9 +128,9 @@
     * Rewrite calls: LinearAccessPatternFinder -> LivenessAnalysis -> PlanMemory -> PrepareNewAlloc -> rewrite by operator() -> MakeAttach 
     * LinearAccessPatternFinder ---> 主要作用是:  
       * 1). 对每个storage_scope所对应的 Var 在 alloc_info_ info中添加, 并set storage scope.  
-      * 2). 对于For/IfThenElse/Assert等stmt, thread_extent/extern_scope/virtual_thread对应的attr stmt, 调用 VisitNewScope 将其分割开, 每个VisitNewScope 会在 linear_seq_ 添加对应的 before_scope, after_scope, 而该 scope 中的分析递归 visit op即可, 因此会有 nested_scope的情形出现；每次进入会在 scope_ 中 push StmtEntry, 而 after_scope后则 pop, 借用 scope_ stack 可以获取到当前的 Stmt Node处于 哪个 scope 中, 使用 scope_level 来标识.  
+      * 2). 对于For/IfThenElse/Assert等stmt, thread_extent/extern_scope/virtual_thread对应的attr stmt, 调用 VisitNewScope 将其分割开, 每个VisitNewScope 会在 linear_seq_ 添加对应的 before_scope, after_scope, 而该 scope 中的分析递归 visit op即可, 因此会有 nested_scope的情形出现；每次进入会在 scope_ 中 push StmtEntry, 而 after_scope后则 pop, 借用 scope_ stack 可以获取到当前的 Stmt Node处于 哪个 scope 中, 使用 scope_level 来标识. 每次的 touched vars 仅在 after_scope时候更新，因此 touched size 不为 0的 offset均为负.  
       * 3). 那么对于 Allocate Stmt, 获取对应 buffer_var 的 AllocEntry, 更新对应 Allocate Stmt以及 scope_level 为当前 Allocate Stmt所在位置.
-      * 4). 对于其他会使用到 Var的 Stmt (Store, Load, Var), 在alloc_info中获取 Var 对应的 Alloc Stmt所在的 scope_level, 并在对应 scope_ 中添加该 Var 为 touched, 即在此level的 scope中会有这些 Var访问到Allocate所分配的buffer_var.
+      * 4). 对于其他会使用到 Var的 Stmt (Store, Load, Var), 在alloc_info中获取 Var 对应的 Alloc Stmt所在的 scope_level, 并在对应 level scope_ 中添加该 Var 为 touched, 即在此level的 scope中会有这些 Var访问到Allocate所分配的buffer_var.
       * 5). 两个重要的数据结构: StmtEntry & AllocEntry, StmtEntry 主要标识当前 scope 对应 Stmt, scope在 linear_seq_中范围, 以及其牵扯到的 Var访问(R/W);     AllocEntry 主要标记每个 Allocate 所在的 scope 层级, 以及对应 Allocate Stmt.
       * 6). 两个被后续使用成员: linear_seq_ & alloc_info_
       * linear_seq_: vector<StmtEntry\>, 其中包含了所有scope的起始和终止(bef_scope, aft_scope), 可获取每个scope中对应访问(R/W)过的所有 Vars;
@@ -140,4 +140,32 @@
       * kill point: 逆序遍历 linear_seq_, 即从最后的 nested scope开始向前, 即从最后使用 touched vars的scope开始, 此即为其中scope touch vars的生命周期, 故 对应Var 因在之后被kill. 每次在 event_map_ 中 对scope stmt 对应的 EnventEntry的 kill 中添加 touched vars (not visited yet).
       * gen point: 顺序遍历 linear_seq_, 从最初的nested_scope 开始，即最先使用该 Var的 scope 开始, 故对应 Var因在此前被 gen. 每次在event_map_ 中对 scope stmt 对应的 EventEntry 的 gen中添加 touch vars (not visited yet).
     * PlanMemory: Utilize linear_seq_ and alloc_info_ to do memory planning  
-      *  placeholder
+      *  PlanMemory所使用信息: linear_seq_ -> scope 对应 stmt 及 scope 中 touched vars; alloc_info_ -> VarNode 所对应 Alloc Stmt, storage_scope and scope_level; event_map_ -> 每个 scope 对应 stmt 所包含的 gen vars & kill vars;
+      * ```c++
+        for (i = 0; i < seq.size(); i++)  
+            find seq[i].stmt in event_map_  
+                // begin scope process, offset >= 0
+                // stmt denotes seq[i].stmt for simplicity
+                if found && offset >= 0
+                    for (var : stmt related gen vars)
+                        detect inplace if only gen < 2
+                            for (var : stmt related kill)
+                                if exist gen var in kill vars (may exist in place)
+                                    InplaceOpVerifier
+                                    if pass inplace check
+                                        StorageEntry of this dst_entry(gen) is src_entry(kill)
+                        dst_entry = FindAlloc(gen var related alloc ...)
+                        dst_entry->allocs add related alloc
+                        add <var, dst_entry\> in alloc_map_
+                // enter/exit new_scope
+                if AttrStmt
+                    if thread_extent || virtual_thread
+                        PlanNewScope -> update thread_scope_ to op
+                else if For
+                    if Parallel type For
+                        PlanNewScope -> udpate thread_scope_ to op
+                // exit the scope, we can free the stmt related kill vars
+                if found && offset <= 0
+                    for (var : stmt reated kill vars)
+                        Free(var) if not inplace substitute
+        ```
