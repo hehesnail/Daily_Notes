@@ -169,3 +169,10 @@
                     for (var : stmt reated kill vars)
                         Free(var) if not inplace substitute
         ```
+     * 这个 PlanMemory还是相当复杂啊，1).首先对event_map_中对应的**gen vars**(此时外层先被access)进行**内存分配**即创建对应的 StorageEntry 并添加进入 alloc_map_中; 分配前做 InplaceOp检测，主要会借助 InplaceOpVerifier 检测 inplace 操作，若是对var进行合并，复用之前 StorageEntry即可；若不是inplace，则调用 FindAlloc 创建新的 StorageEntry 并进行内存分配；之后将对应分配结果添加进入 alloc_map_中. 2). 之后判断是否 enter/exit new_scope，这个主要跟 thread强相关，在 AttrStmt为 thread_extent 和 virtual_thread的时候会对 thread_scope_ 更新，在 For 为 parallel(即做了 parallel) 优化后的也会更新 thread_scope_. 3). 最后对 event_map_中对应 **kill vars**, offset为负(内层先被access, also free first). 针对对应的 kill var，若其没有被 inpalce操作，则 Free, 其实是在const_free_map_ & sym_free_list_中添加 var 对应 StorageEntry，从而被之后的 FindAlloc时可复用.
+     * PlanMemory -> InplaceOpVerifier
+     * PlanMemory -> FindAlloc
+     * PlanMemory -> FindAlloc -> NewAlloc
+     * PlanMemory -> Free
+     * PlanMemory -> PlanNewScope
+     * PrepareNewAlloc
