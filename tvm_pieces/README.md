@@ -122,7 +122,7 @@
     * 粗略地看了下RFC(https://discuss.tvm.apache.org/t/rfc-tensorir-a-schedulable-ir-for-tvm/7872)上的讨论, TensorIR是TIR可优化的增强版, 主要提出 Block statement structure来warp IR, Block会作为最小的scheduling and tensorization的单元，其中包含 Iter Vars, Block读写region, allocated buffer 以及 body stmt. 从这点来看，是在已有的TIR的基础上新增了更加粗粒度的访问块，在Block unit中附加上schedule所需的信息，从而实现直接对于TIR的schedule；
     * 几点好处: 1). schedule直接作用在 TIR, 而不需要通过在schedule tree调度后拼接 stmt形成 TIR，TF/PyTorch/ONNX -> Relay -> TIR -> schedule -> TIR -> scheudle -> TIR -> C++/CUDA; 2). 更加灵活的描述，相对于TE; 3). 更好地支持 memory hierarchy 以及 execution hierarchy; 4). 对于 tensorization 支持更加灵活; 5). 可以在每次schedule对于IR进行验证
     * 目前来看, 关于Block 的 PR已经提了;
-### *2021.3.15 & 16*
+### *2021.3.15 & 16 & 17*
 * ***Storage Rewrite Pass***
     * Function: Memory access pattern analysis and optimization, re-write data access to enable memory shareing as mush as possible.
     * Rewrite calls: LinearAccessPatternFinder -> LivenessAnalysis -> PlanMemory -> PrepareNewAlloc -> rewrite by operator() -> MakeAttach 
@@ -135,6 +135,7 @@
       * 6). 两个被后续使用成员: linear_seq_ & alloc_info_
       * linear_seq_: vector<StmtEntry\>, 其中包含了所有scope的起始和终止(bef_scope, aft_scope), 可获取每个scope中对应访问(R/W)过的所有 Vars;
       * alloc_info_: unordered_map<const VarNode*, AllocEntry\>, 可获取得到所有 Var所对应的 Alloc (stmt,scope_level, storage_scope).
+      * 在这里需要注意理解 scope, scope主要在这里用以来划定 程序局部区域, 其包含了范围那些变量的信息, 可以来帮忙界定对应 alloc 的生存范围, 比如若存在某个变量在此区域后就未被使用了, 那么其可在该 scope被 kill, 因此后续则会被添加到 scope 对应的 kill vars中; 若存在某个变量在该区域第一次使用, 那么其应在这里被 gen, 也就是分配内存的操作直到这里才开始进行; 而 linear_seq_ 中 scope 往往是 nested scope, 对应 offset很可能出先类似 [8, [3, [1, -1], -3], [3, [1, -1], -3], -8], 注意这里的 从 + 进后 从对应 - 出的时候,  若有 kill vars, 则 free掉; 在后续和该 scope 同级的 scope 就有复用 被释放掉 vars的机会 (storage rewrite 的主要目的). 
     * LivenessAnalysis:  find gen and kill point of each variable by filling the event_map_ ---> unordered_map<const Object*, EventEntry\>
       * EnventEntry: vector<cosnt VarNode*\> gen, vector<const VarNode*\> kill   
       * kill point: 逆序遍历 linear_seq_, 即从最后的 nested scope开始向前, 即从最后使用 touched vars的scope开始, 此即为其中scope touch vars的生命周期, 故 对应Var 因在之后被kill. 每次在 event_map_ 中 对scope stmt 对应的 EnventEntry的 kill 中添加 touched vars (not visited yet).
@@ -156,7 +157,7 @@
                                         StorageEntry of this dst_entry(gen) is src_entry(kill)
                         dst_entry = FindAlloc(gen var related alloc ...)
                         dst_entry->allocs add related alloc
-                        add <var, dst_entry\> in alloc_map_
+                        add <var, dst_entry> in alloc_map_
                 // enter/exit new_scope
                 if AttrStmt
                     if thread_extent || virtual_thread
@@ -170,15 +171,21 @@
                         Free(var) if not inplace substitute
         ```
      * 这个 PlanMemory还是相当复杂啊...  
-       * 1).首先对event_map_中对应的**gen vars**(此时外层先被access)进行**内存分配**即创建对应的 StorageEntry 并添加进入 alloc_map_中; 分配前做 InplaceOp检测，主要会借助 InplaceOpVerifier 检测 inplace 操作，若是对var进行合并，复用之前 StorageEntry即可；若不是inplace，则调用 FindAlloc 创建新的 StorageEntry 并进行内存分配；之后将对应分配结果添加进入 alloc_map_中. 
+       * 1).首先对event_map_中对应的**gen vars**(此时外层先被access)进行**内存分配**即创建对应的 StorageEntry 并添加进入 alloc_map_中; 分配前做 InplaceOp检测，主要会借助 InplaceOpVerifier 检测 inplace 操作，若是对var进行合并，复用之前 src的 StorageEntry即可；若不是inplace，则调用 FindAlloc 创建新的 StorageEntry 并进行内存分配；之后将对应分配结果添加进入 alloc_map_中. 
        * 2). 之后判断是否 enter/exit new_scope，这个主要跟 thread强相关，在 AttrStmt为 thread_extent 和 virtual_thread的时候会对 thread_scope_ 更新，在 For 为 parallel(即做了 parallel) 优化后的也会更新 thread_scope_. 
-       * 3). 最后对 event_map_中对应 **kill vars**, offset为负(内层先被access, also free first). 针对对应的 kill var，若其没有被 inpalce操作，则 Free, 其实是在const_free_map_ & sym_free_list_中添加 var 对应 StorageEntry，从而被之后的 FindAlloc时可复用.
-     * PlanMemory -> InplaceOpVerifier
-     * PlanMemory -> FindAlloc
-     * PlanMemory -> FindAlloc -> NewAlloc
-     * PlanMemory -> Free
-     * PlanMemory -> PlanNewScope
-     * PrepareNewAlloc
+       * 3). 最后对 event_map_中对应 **kill vars**, offset为负(内层先被access, also free first). 针对对应的 kill var，若其没有被 inpalce操作，则 Free, 其实是在const_free_map_ & sym_free_list_中添加 var 对应 StorageEntry，从而被之后的 FindAlloc时可复用. 比如 [8, [3, 1, -1, -3], [3, 1, -1, -3], -8], 进行是否可 free 的判断顺序会为, -1, -3, -1, -3, -8; 可以看出 nested_scope 中 free 后的 var 的复用也是同 free scope 所同级别的 scope, 不被 free scope所包含在内; 
+     * PlanMemory -> InplaceOpVerifier  
+       * 主要验证刚被 kill 的 var(src) 是否 可被下一个 gen 的 var(dst)所复用(也就是当前 scope 存在gen var后立马释放掉 对应 var, 那么对应的op很有可能就是 inplace opeartion); 这个 Verifier主要验证  dst[index\] = f(src[index\]), 具体判断规则看代码;
+     * PlanMemory -> FindAlloc   
+       * 在没有 inplace 复用的情况下, 调用 FindAlloc 进行 StorageEntry 的分配; 
+       * FindAlloc/Free 和 linear_seq_中scope 对应 event_map_中 gen/kill vars进行联动易求完成对前一 scope free的 vars 的复用; 
+       * Free 的 Vars 会首先找到 alloc_map_ 中对应 StorageEntry, 并根据alloc const_n_bits 是否为 0 将对应 StorageEntry 添加进入 const_free_map(const size) 及 sym_free_list(dynamic size)中; 
+       * 若在 const_free_map / sym_free_list 中找到满足条件的 StorageEntry, 则复用对应的 StorageEntry, 且返回后在对应的牵扯 allocs中添加到该 var对应 alloc, 即该alloc会被合并; 没找到就很直接啊，NewAlloc就行了, NewAlloc create 的 new StorageEntry 会被添加进 alloc_vecs_中; 
+       * 此时的 attach_scope_ 为外部传入, 而该 attach_scope 为 thread_scope_ 尽在 PlanNewScope的时候会被更新;
+     * PlanMemory -> PlanNewScope: 这个还需更深入理解下 thread_scope_ 切换的时机, 目前来看 AttrStmt(thread_extent/virtual_thread) / For(parallel) 层级的 scope 的 gen vars是在这之前完成的, gen vars成功分配 StorageEntry之后才会进入这个 PlanNewScope, 所以 update thread_scope_ 之后 gen vars 对应的 scope 应包含在当前这个 scope之内, 这之内的 gen vars就希望进行局部 alloc/free, 且不可被其他 var复用分配内存;
+     * PrepareNewAlloc -> 在上述 alloc_map_, alloc_vecs_这些准备好了之后 fill attach_map_  
+       * 首先将 alloc_vecs中所有的 StorageEntry 中 <attach_scope_, StorageEntry*\>作为 kv 对添加进入 attach_map_中
+       * 遍历 attach_map_ 中 kv对, 遍历同一 key (attach_scope) 中所有 StorageEntry 更新其中 new_alloc 为新创建的 Allocate; 这当中会根据 StorageEntry中 allocs的个数判断是否进行 allocate合并. allocs.size() > 0 就是有多个 alloc 共享这个 StorageEntry 此时新创建 Allocate 分配大小为 几个 alloc中最大; 若为0, 直接create Allocate即可.
      * Rewrite: 使用 attach_map_ 对 当前 stmt进行 rewrite, 因在之前的处理当中, inplace op被合并, 可被复用的内存已被复用; 针对 thread 的 thread_extent, virtual_thread, For parallel, 对应的 Alloc 被 attach 到 当前的 op (AttrStmt, For op); 因此, 此时 attach_map_ 含有 nullptr 对应 global allocs, others attached op 对应的 local allocs. 那么当前的策略是:  
        * 1). 对 thread 相关的 thread_extent, virtual_thread, For, 若 attach 到对应 op, 则 MakeAttach 拼接 该 attach_scope 对应的 所有内存分配 StorageEntry对应 alloc 和 op body; 原地 alloc, 且 alloc 对应的 body为该 op body, 此时其作用范围仅限 op_body 对应部分, 超出即释放.
        * 2). 对于其他 Stmt Node, 如 StoreNode, LoadNode, VarNode, CallNode 等，则在 alloc_map_中查询对应新 alloc 的 buffer_var 并更新其中 var的部分后 return modified stmt 即可. 而 attach_scope 为 nullptr 的 global 内存分配 (StorageEntry), 会在所有 stmt更新完成之后, 调用 MakeAttach 拼接 该 attach_scope(global) 对应的所有 allocs 和 stmt.
