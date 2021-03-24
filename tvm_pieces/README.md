@@ -189,3 +189,19 @@
      * Rewrite: 使用 attach_map_ 对 当前 stmt进行 rewrite, 因在之前的处理当中, inplace op被合并, 可被复用的内存已被复用; 针对 thread 的 thread_extent, virtual_thread, For parallel, 对应的 Alloc 被 attach 到 当前的 op (AttrStmt, For op); 因此, 此时 attach_map_ 含有 nullptr 对应 global allocs, others attached op 对应的 local allocs. 那么当前的策略是:  
        * 1). 对 thread 相关的 thread_extent, virtual_thread, For, 若 attach 到对应 op, 则 MakeAttach 拼接 该 attach_scope 对应的 所有内存分配 StorageEntry对应 alloc 和 op body; 原地 alloc, 且 alloc 对应的 body为该 op body, 此时其作用范围仅限 op_body 对应部分, 超出即释放.
        * 2). 对于其他 Stmt Node, 如 StoreNode, LoadNode, VarNode, CallNode 等，则在 alloc_map_中查询对应新 alloc 的 buffer_var 并更新其中 var的部分后 return modified stmt 即可. 而 attach_scope 为 nullptr 的 global 内存分配 (StorageEntry), 会在所有 stmt更新完成之后, 调用 MakeAttach 拼接 该 attach_scope(global) 对应的所有 allocs 和 stmt.
+
+### *2021.3.23 & 24 & 25 & 26 & 27 & 28*
+* ***Schedule Lang***  
+    *  Schedule & Stage creation ---> Done
+    *  ScheduleOps: main process to obtain body ---> Done
+    *  ReadGraph/FeedGraph/AttachPath ---> Done
+    *  Split/tile/reorder/fuse ---> Done
+    *  Compute_at/compute_inline/compute_root ---> Done
+    *  Unroll/parallel/vectorize/tensorize/pragma ---> Done,lowered in tir passes. parallel->llvm codegen, unroll->unroll_loop pass, vectorize->vectorize_loop pass, tensorize->compute_op make_tensorize, pragma->compute_op MakeLoopNest, to AttrStmt ---> Done (tir passes not included)
+    *  InjectInline ---> Done
+    *  InjectAttach
+    *  Cache_read/cache_write (complex)
+    *  RebaseNonZeroMinLoop
+    *  InferBound (complex)
+    *  LegalizeInvalidAttach
+    *  ComputeOp Body (most complex)
