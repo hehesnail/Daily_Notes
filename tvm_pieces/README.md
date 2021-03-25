@@ -197,11 +197,13 @@
     *  ReadGraph/FeedGraph/AttachPath ---> Done
     *  Split/tile/reorder/fuse ---> Done
     *  Compute_at/compute_inline/compute_root ---> Done
-    *  Unroll/parallel/vectorize/tensorize/pragma ---> Done,lowered in tir passes. parallel->llvm codegen, unroll->unroll_loop pass, vectorize->vectorize_loop pass, tensorize->compute_op make_tensorize, pragma->compute_op MakeLoopNest, to AttrStmt ---> Done (tir passes not included)
+    *  Unroll/parallel/vectorize/tensorize/pragma ---> lowered in tir passes. parallel->llvm codegen, unroll->unroll_loop pass, vectorize->vectorize_loop pass, tensorize->compute_op make_tensorize, pragma->compute_op MakeLoopNest, to AttrStmt ---> Done (tir passes not included)
     *  InjectInline ---> Done
-    *  InjectAttach
-    *  Cache_read/cache_write (complex)
+    *  InjectAttach ---> Done
+    *  Cache_read ---> Done
+    *  Cache_write (complex)
+    *  Message passing helpers 
     *  RebaseNonZeroMinLoop
     *  InferBound (complex)
     *  LegalizeInvalidAttach
-    *  ComputeOp Body (most complex)
+    *  ComputeOp Body (most complex) ---> 扫了下 MakeLoopNest, Compute 和 CUDA thread 绑定还是非常深，基本上就是为 CUDA做了很多定制优化，从这个角度看，以后要支持类似平台工作量涉及从 Compute DSL 到 Codegen.
