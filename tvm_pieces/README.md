@@ -99,7 +99,7 @@
     * 目前来看，tir这块理解最欠缺的是内存管理相关的IR，之后着重分析。
 
 ### *2021.1.19*
-* *** TIR Buffer ***
+* ***TIR Buffer***
     * 看了下TIR中Buffer的管理，因利用IRBuilder将Tensor创建buffer_ptr时出错。其实因为Tensor会在lower的过程中最后转换为Buffer，因此这种行为相当于将lower过程中搞得提前到了Tensor赋值的过程中来，故报错，若非要解决这个问题只能根据Tensor的dtype, shape重新构建Buffer才行。
     * TIR Buffer在 C++端(src/tir/ir/buffer.cc, include/tir/buffer.h) 和 Python端(python/tvm/tir/buffer.py)行为基本一致，因Python Buffer class 直接调用C++ register的类构造函数 以及 成员函数，其中decl_buffer也是直接调用C++端的函数。BufferNode中基本三个member为 Var data -> 指向数据的指针，DataType dtype -> 数据类型 以及 Array<PrimExpr> shape -> buffer的shape大小。那关于Buffer的内存分配，看了下codegen_llvm.cc中，llvm的IRBuilder只有在Allocate Stmt的时候，才会调用 CreateAlloca 即分配内存，故Buffer的内存管理主要还是由 lower的过程当中，适时地插入Allocate Stmt时才完成。那么关于 Store / Load 基本是先获取到 对应Buffer，后利用 llvm IRBuilder 创建指针访问。
     * python端 ir_builder 使更容易的获取buffer元素 ---> BufferVar 类，类构建irbuilder, buffer_var(Var), content_type；通过__setitem__ (emit Store) 和 __getitem__ (emit Load)来创建IR，同时注意 buffer_ptr函数接收一个Buffer对象，将其 data 和 dtype提取并创建BufferVar对象，就可以A[i]这种方式获取Buffer中的元素，免去了很多麻烦。pointer函数根据类型先创建 Var，后创建 BufferVar绑定到刚创建的Var上。allocate函数会直接emit allocate stmt. 
@@ -201,9 +201,17 @@
     *  InjectInline ---> Done
     *  InjectAttach ---> Done
     *  Cache_read ---> Done
-    *  Cache_write (complex)
-    *  Message passing helpers 
-    *  RebaseNonZeroMinLoop
-    *  InferBound (complex)
-    *  LegalizeInvalidAttach
-    *  ComputeOp Body (most complex) ---> 扫了下 MakeLoopNest, Compute 和 CUDA thread 绑定还是非常深，基本上就是为 CUDA做了很多定制优化，从这个角度看，以后要支持类似平台工作量涉及从 Compute DSL 到 Codegen.
+    *  Cache_write ---> 3.28
+    *  Message passing helpers ---> MakeBoundCheck, PassUpBoundCheck, PassDownBitMaskOr (Done), remaining range processing
+    *  RebaseNonZeroMinLoop ---> Done
+    *  InferBound ---> 3.28
+    *  LegalizeInvalidAttach ---> Done
+    *  ComputeOp Body 
+        * Main Process: DetectComputeType -> MakeComputeStmt
+        * DetectComputeType: 根据对应 stage 中 iter_var_attrs的属性，区分出 kTensorize(MakeTensorize), kCrossThreadReduction(MakeCrossThreadReduction), kNormal(MakeComputeStmt).
+        * MakeComputeStmt: 构建ComputeStmt的主要过程: 1). Create ComputeLoopNest -> 2). MakeIfNest -> 3). 有 reduce_axis, MakeReduction，拼接 CommonNest 和 ReduceNest，并完成最终body拼接 -> 4). 无 reduce_axis, Merge provide and main_nest 
+        * ComputeLoopNest: 1). Call MakeLoopNest创建主循环，此函数的主要作用是根据leaf_iter_vars 构建Loop中的 For Nest, 其中会根据 iter_var 的 IterVarAttr的不同，采取不同的行为，并添加 AttrStmt；在每个 IterVar 创建完成之后会利用 loop_scope的 AttrStmt进行标记，会在compute_at中用到；2). Call MakeBoundCheck 检查 main_nest当中是否需要加入额外的 If判断，其中会调用PassUpBoundCheck来对Split, Fuse, Rebase等 RelationNode进行处理；3). 若存在 reduce_axis, 需要在正确的地方插入对应 Reduce的初始化语句(init_nest)，具体调用 PassDownBitMaskOr 来判断进行过 Split，Fuse，Rebase等操作的IterVar是否为reduce_axis；之后在生成 init_nest的时候，会找到reduce_axis出现的位置，以此开始，并且会跳过所有的非 reduce_axis的iter var，而 init_nest 和 init_predicated的生成调用的也同样是 MakeLoopNest 和 MakeBoundCheck，不过此次会生成新的 iter_var, 以".init"为后缀；4). 此时 num_common_loop 在是否有reduce_axis的情况下不同，即 begin_loop & leaf_iter_vars.size();
+        * MakeIfNest: 根据 predicates 生成 IfThenElse Node；
+        * If reduce_axis: 1). 通过 MakeReduction 获取到内部的 body (actual computation)，init, provide，并将 init body 拼接在 init_nest的 body中；2). 根据 num_common_loop将 main_nest分为 common, reduce，并在reduce body拼接为provide，后和 init相拼后合入 common中； common->init->reduce->provide;
+        * If no reduce axis: 这个相对简单，MakeProvide (ProducerStore)获取 provide body, 和 main_nest一拼就完事；
+        * 最后将 ComputeStmt中的 IterVar 替换为 PrimExpr.
