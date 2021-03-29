@@ -215,3 +215,8 @@
         * If reduce_axis: 1). 通过 MakeReduction 获取到内部的 body (actual computation)，init, provide，并将 init body 拼接在 init_nest的 body中；2). 根据 num_common_loop将 main_nest分为 common, reduce，并在reduce body拼接为provide，后和 init相拼后合入 common中； common->init->reduce->provide;
         * If no reduce axis: 这个相对简单，MakeProvide (ProducerStore)获取 provide body, 和 main_nest一拼就完事；
         * 最后将 ComputeStmt中的 IterVar 替换为 PrimExpr.
+
+### *2021.3.29*
+* ***Unroll_loop & Vectorize_loop***
+    * unroll_loop: Done 
+    * vectorize_loop: Done 
