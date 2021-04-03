@@ -220,3 +220,8 @@
 * ***Unroll_loop & Vectorize_loop***
     * unroll_loop: Done 
     * vectorize_loop: Done 
+
+### *2021.4.3 & 4.4*
+* ***InjectDoubleBuffer***
+    * 首先搞清楚，啥时候才能 double_buffer，看 Pass里面，double_buffer_scope必须在一个 for 循环中；这时候看 scheduleops 以及 schedule_postproc_to_primfunc的时候，看不出什么端倪，因为正常 MakePipline的时候；即使 set_stage 为 double_buffer_scope，此 AttrStmt必不在循环中，之后看例子，是因为 double_buffer这玩意，必须配合到 compute_at一起用，attach 到某个循环轴上，也会在 loop中。另一种情形就是使用 IRBuilder 在 for 中 allocate 并 set 对应 buffer_var 为 double_buffer_scope, emit成 extern_op
+    * TO ADD Furthre analysis 
