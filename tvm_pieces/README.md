@@ -225,3 +225,13 @@
 * ***InjectDoubleBuffer***
     * 首先搞清楚，啥时候才能 double_buffer，看 Pass里面，double_buffer_scope必须在一个 for 循环中；这时候看 scheduleops 以及 schedule_postproc_to_primfunc的时候，看不出什么端倪，因为正常 MakePipline的时候；即使 set_stage 为 double_buffer_scope，此 AttrStmt必不在循环中，之后看例子，是因为 double_buffer这玩意，必须配合到 compute_at一起用，attach 到某个循环轴上，也会在 loop中。另一种情形就是使用 IRBuilder 在 for 中 allocate 并 set 对应 buffer_var 为 double_buffer_scope, emit成 extern_op
     * TO ADD Furthre analysis 
+
+### *2020.4.19*
+* ***Auto-schedule Get Started***
+    * Typical Flow: 
+         * Describle computation rule(**register_workload**)
+         * Create theSearchTask with comp_func, args, targ (**SearchTask**), also can obtain compute_dag for the created_graph
+         * Set up tune params via(**TuneOptions**), and use **LocalRPCMeasureContext** as gpu runner, **LocalRunner** for x86 runner.
+         * Start auto-tuning just by **tune**, and **apply_best** ret the searched schedule and args to creating tvm module.
+         * Build the tvm module and evaluate the searched result.
+         * Addtionally, one can also resume the past search, by creating cost model(i.e., **XGBModel**) and call **update_from_file**. create the search_policy via **SketchPolicy** and sepcify the init_search_callbacks.The remaining things are just the same as above.  
