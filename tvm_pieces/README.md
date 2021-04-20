@@ -238,3 +238,20 @@
          * For auto-schedule the network(often be converted to relay module), call **extract_tasks** to parse the search-ops based tracing mode. Use **TaskScheduler** to run multiple search tasks. The remining thing is just to apply best log and build the relay module.
          * Brief impression, the core things are: search_task.py, search_policy,py, cost_model/cost_model.py & xgb_model.py, measure.py.
          * Next things: follow the workflow, read original paper and analyze the source codes from python to cxx side.
+
+### *2020.4.20 & 4.21*
+* ***Ansor reading notes***
+    * Contributions:
+        * A mechanism to generate a **large hierarchical search space** of tensor programs for a **computational graph**.
+        * An **evolutionary strategy** with a learned cost model to fine-tune the performance of tensor programs.
+        * A **scheduling algorithm** based on gradient descent to **prioritize important subgraphs** when optimizing the end-to-end performance of DNNs.
+        * An implementation and comprehensive evaluation of the Ansor system demonstrating that the above techniques outperform state-of-the-art systems on a variety of DNNs and hardware platforms.  
+    * Previous work:
+        * **Templated based search**: require the user to write the template for several parameters first, autotvm in tvm. Also, limited to single operator optmization.
+        * **Sequential construction based search**: sequentially unfold each node in the computational graph based on decision making, select the top-k candidates via learned cost model, others are pruned(incomplete search space). The auto-scheduler in Halide. The cost model estimateing the perf of incomplete program is difficult.
+        * **hierarchical approach**: this paper.
+    * Framwork design:
+        * 3 major components: (1) a program sampler that constructs a large search space and samples diverse programs from it; (2) a performance tuner that fine-tunes the performance of sampled programs; (3) a task scheduler that allocates time resources for optimizing multiple subgraphs in the DNNs.
+        * **Program Sampler**: two levels: sketchs -> high-level structure of program, annotations -> low-levle details of program. 
+        * **Performance tuner**: At each iteration, Ansor uses re-sampled new programs as well as good programs from previous iterations as the initial population to start the evolutionary search.
+        * **Task Scheduler**: allocate time resource for searching for each subgraph extracted via relay program, not the end-to-end search for the whole graph.
