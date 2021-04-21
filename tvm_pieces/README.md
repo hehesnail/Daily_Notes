@@ -268,3 +268,12 @@
         * ***Perform optimization on high level, rely the LLVM & NVCC to do machine-depedent optimizations.***
         * ***Short usage of the special instructions(tensorcore, arm).***, this may due to the weakness of the current tensorization way to utilize the special instruction ? 
         * ***Combination of ansor and graph-level optimization***, i.e., the end-to-end optimization for the whole network graph.
+
+### *2020.4.22*
+* ***auto-schedule user-defined operator tracing***:
+    * **workload_registry.py**: Workload registration and serialization.
+        * WORKLOAD_FUNC_REGISTRY = {} -> Global workload function and hash key registry; 1). user registerd task via decorator **register_workload**. 2). extract tasks from relay program via function **register_workload_tensors**. **register_workload** will register the function_name & func_pointer to the WORKLOAD_FUNC_REGISTRY.
+    * **search_task.py**: create the SearchTask object via registered func, arguments of func(static size, no dynamic shape), target. Contains the computation information and hardware parameters for a schedule search task.
+        * _ffi.register_object int the cxx side, auto_scheduler.SearchTask.
+        * Create the search task either via function or via workload_key.
+        * For function input, call the **make_workload** to serialize the function_name with args to workload_key via json dump. Create **ComputeDAG** object via workload_key and utilize the default layout_rewrite_options. Finally, call the cxx constructor to construct the object.
