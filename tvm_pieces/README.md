@@ -241,17 +241,30 @@
 
 ### *2020.4.20 & 4.21*
 * ***Ansor reading notes***
-    * Contributions:
+    * **Contributions**:
         * A mechanism to generate a **large hierarchical search space** of tensor programs for a **computational graph**.
         * An **evolutionary strategy** with a learned cost model to fine-tune the performance of tensor programs.
         * A **scheduling algorithm** based on gradient descent to **prioritize important subgraphs** when optimizing the end-to-end performance of DNNs.
         * An implementation and comprehensive evaluation of the Ansor system demonstrating that the above techniques outperform state-of-the-art systems on a variety of DNNs and hardware platforms.  
-    * Previous work:
+    * **Previous work**:
         * **Templated based search**: require the user to write the template for several parameters first, autotvm in tvm. Also, limited to single operator optmization.
         * **Sequential construction based search**: sequentially unfold each node in the computational graph based on decision making, select the top-k candidates via learned cost model, others are pruned(incomplete search space). The auto-scheduler in Halide. The cost model estimateing the perf of incomplete program is difficult.
         * **hierarchical approach**: this paper.
-    * Framwork design:
+    * **Framwork design**:
         * 3 major components: (1) a program sampler that constructs a large search space and samples diverse programs from it; (2) a performance tuner that fine-tunes the performance of sampled programs; (3) a task scheduler that allocates time resources for optimizing multiple subgraphs in the DNNs.
         * **Program Sampler**: two levels: sketchs -> high-level structure of program, annotations -> low-levle details of program. 
         * **Performance tuner**: At each iteration, Ansor uses re-sampled new programs as well as good programs from previous iterations as the initial population to start the evolutionary search.
         * **Task Scheduler**: allocate time resource for searching for each subgraph extracted via relay program, not the end-to-end search for the whole graph.
+    * **Program Sampling**:
+        * **Sketch generation**: Based on the derivation rules(six rules in paper) to iteratively apply node from end to the first (topological order of DAG).
+        * **Random Annotation**: Randomly sample the details of the program based on the generated sketch, including: tile sizes and loop annotations, such as parallel, unroll, and vectorization.
+    * **Perforamce Tuning**:
+        * **Evolutionary Search**:  starts from the sampled initial generation. **mutations**: tile size, parallel, pragma, computation location. Along with the mutation, contains **node-level crossover**.
+        * **Cost Model**: Based on xgboost, to use the cost model select the candidates programs first and then evaluate these programs on the real machine to update the parameters of the cost model. In this paper, use the L2 loss to train the boosting tree.
+    * **Task scheduler**: the schedule algorithm based on gradient-descent to allocate time resources to sub-graphs of the DNN, i.e., tasks.
+    * **Limitations**:
+        * ***Dynamic shape supprot***.
+        * ***Only works well on dense operators, fail on sparse operator like sparse matrix multiplication and GCN.***
+        * ***Perform optimization on high level, rely the LLVM & NVCC to do machine-depedent optimizations.***
+        * ***Short usage of the special instructions(tensorcore, arm).***, this may due to the weakness of the current tensorization way to utilize the special instruction ? 
+        * ***Combination of ansor and graph-level optimization***, i.e., the end-to-end optimization for the whole network graph.
