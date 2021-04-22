@@ -269,7 +269,7 @@
         * ***Short usage of the special instructions(tensorcore, arm).***, this may due to the weakness of the current tensorization way to utilize the special instruction ? 
         * ***Combination of ansor and graph-level optimization***, i.e., the end-to-end optimization for the whole network graph.
 
-### *2020.4.22*
+### *2020.4.22 & 4.23*
 * ***auto-schedule user-defined operator tracing***:
     * **workload_registry.py**: Workload registration and serialization.
         * WORKLOAD_FUNC_REGISTRY = {} -> Global workload function and hash key registry; 1). user registerd task via decorator **register_workload**. 2). extract tasks from relay program via function **register_workload_tensors**. **register_workload** will register the function_name & func_pointer to the WORKLOAD_FUNC_REGISTRY.
@@ -277,3 +277,20 @@
         * _ffi.register_object int the cxx side, auto_scheduler.SearchTask.
         * Create the search task either via function or via workload_key.
         * For function input, call the **make_workload** to serialize the function_name with args to workload_key via json dump. Create **ComputeDAG** object via workload_key and utilize the default layout_rewrite_options. Finally, call the cxx constructor to construct the object.
+        * The **HardwareParams** object and **TuningOptions** object just call the constructor in cxx side.
+        * **tune** func create the search_policy if input one is None. search policy firt construct **XGBModel** cost model and then create **SketchPolicy** object. Finally, can the **_ffi_api.AutoSchedule** in cxx size via params(search_policy and tuning_options).
+    * **compute_dag.py**: auto-scheduler's computational graph and related program analyses.
+        * **ComputeDAG** object create, input to cxx side is the compute_tensors(out_tensor ReadGraph postorder visit) and the sch(None). Or compute(None), the (tvm.te.schedule) is not none.
+        *  Currently omit the detals of the such as the loop_state related functions.
+        *  Function: It keeps the input/output tensors, all operations in the DAG, and some static analysis results for the DAG (e.g. the total float operation count, consumer/producer relations of operations, whether an operation stage should be tiled/compute inlined ...). These analyses can help the search policy to make decisions during the search.
+    * **search_task.h/search_task.cc**
+        * In search_task.h, define the class HardwareParams, HardwareParamsNode, SearchTask, SearchTaskNode. just same members consistent with python side.
+        * search_task.cc, just constructor method and register the method. The **GetDefaultHardwareParams** decrible the how to set default params in different targets.
+    * **compute_dag.h/compute_dag.cc**
+        * Members of ComputeDAGNode: Array<te::Tensor> tensors(only input/output); Array<te::Operation> ops(all ops in the schedule); double flop_ct; State init_state; AccessAnalyzer access_analyzer(do the static analysis);
+        * Brief overview the ComputeDAGNode, can find the auto-schedule do lots of analysis on the compute_dag.
+        * Create object: from in/out tensors, topo order -> te.create_schedule. from sch, obtain placeholders and the stage op marked as the output.
+        * (TO FILL) -> placeholder
+    * **auto_schedule.h/auto_schedule.cc**
+        * TuningOptionsNode definition, and the interface for python to call the AutoSchedule.
+        * The AutoSchedule function create the **ProgramMeasurer** based on the tuning_options. Then call **SearchPolicy** search method with tunining options and created measurer. If the loop_state ret is valid, apply the transform_steps of the loop_state and ret the te::Schedule.
