@@ -269,7 +269,7 @@
         * ***Short usage of the special instructions(tensorcore, arm).***, this may due to the weakness of the current tensorization way to utilize the special instruction ? 
         * ***Combination of ansor and graph-level optimization***, i.e., the end-to-end optimization for the whole network graph.
 
-### *2020.4.22 & 4.23*
+### *2020.4.22 & 4.24*
 * ***auto-schedule user-defined operator tracing***:
     * **workload_registry.py**: Workload registration and serialization.
         * WORKLOAD_FUNC_REGISTRY = {} -> Global workload function and hash key registry; 1). user registerd task via decorator **register_workload**. 2). extract tasks from relay program via function **register_workload_tensors**. **register_workload** will register the function_name & func_pointer to the WORKLOAD_FUNC_REGISTRY.
@@ -292,5 +292,75 @@
         * Create object: from in/out tensors, topo order -> te.create_schedule. from sch, obtain placeholders and the stage op marked as the output.
         * (TO FILL) -> placeholder
     * **auto_schedule.h/auto_schedule.cc**
-        * TuningOptionsNode definition, and the interface for python to call the AutoSchedule.
-        * The AutoSchedule function create the **ProgramMeasurer** based on the tuning_options. Then call **SearchPolicy** search method with tunining options and created measurer. If the loop_state ret is valid, apply the transform_steps of the loop_state and ret the te::Schedule.
+        * **TuningOptionsNode** definition, and the interface for python to call the AutoSchedule.
+        * The AutoSchedule function create the **ProgramMeasurer** based on the tuning_options. Then call **SearchPolicy** search method with tunining options and created measurer. If the loop_state ret is valid, apply the transform_steps of the loop_state and ret the te::Schedule. The input SearchPolicy is created in python side via the SketchPolicy.
+    * **search_policy.py**
+        * the python side actually is just interface to call the cxx side files, also provide several funcs for debuging and testing.
+        * SearchPolicy -> EmptyPolicy, SearchPolicy -> SketchPolicy.
+        * Note **PreloadCustomSketchRule** can be used to register user-defined sketch rule satisfied with requirement.
+    * **search_policy.h/search_policy.cc**
+        * Declare the base class of search policies. **SearchPolicyNode**, the search related method is virutal to be overloaded. The **SearchCallbackNode** can be applied on SearchPolicy object to do some extra processing for schedule search.
+    * **sketch_policy.h/sketch_policy.cc**
+        * class **SketchPolicy**:  The search policy that searches in a hierarchical search space defined by sketches. The policy randomly samples programs from the space defined by sketches and use evolutionary search to fine-tune them.  
+            ```c++
+            /*! \brief The cost model to estimate the complete schedules. */
+            CostModel program_cost_model;
+            /*! \brief The parameters map for this search policy. */
+            Map<String, ObjectRef> params;
+            /*! \brief The rules to generate sketches. */
+            std::vector<SketchGenerationRule*> sketch_rules;
+            /*! \brief The rules to generate initial population. */
+            std::vector<PopulationGenerationRule*> init_rules;
+            /*! \brief The rules to mutate states in the evolutionary search. */
+            std::vector<std::shared_ptr<PopulationMutationRule>> mutation_rules;
+            /*! \brief Random generator. */
+            std::mt19937 rand_gen;
+            /*! \brief Memorize split space for Split. */
+            SplitFactorizationMemo split_memo;
+            ```
+        * Note the these methods: **GenerateSketches**, **SampleInitPopulation**, **EvolutionarySearch** and **PickStatesWithEpsGreedy**. Also, attention to SketchPolicy constructor, the **sketch rules for cpu and gpu differs**, the cpu & gpu & mali are specialized.
+            ```c++
+            // CPU task 
+            node->sketch_rules.push_back(&rule_always_inline);
+            node->sketch_rules.push_back(&rule_simplify_compute_with_const_tensor);
+            node->sketch_rules.push_back(&rule_add_rfactor);
+            node->sketch_rules.push_back(&rule_add_cache_write_stage);
+            node->sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
+            node->sketch_rules.push_back(&rule_multi_level_tiling);
+            node->sketch_rules.push_back(&rule_skip_stage);
+            // GPU(cuda)
+            node->sketch_rules.push_back(&rule_add_cache_read_stage);
+            node->sketch_rules.push_back(&rule_special_compute_location_gpu);
+            node->sketch_rules.push_back(&rule_always_inline);
+            node->sketch_rules.push_back(&rule_simplify_compute_with_const_tensor);
+            node->sketch_rules.push_back(&rule_cross_thread_reduction);
+            node->sketch_rules.push_back(&rule_add_cache_write_stage);
+            node->sketch_rules.push_back(&rule_multi_level_tiling_with_fusion);
+            node->sketch_rules.push_back(&rule_multi_level_tiling);
+            node->sketch_rules.push_back(&rule_skip_stage);
+            ```  
+        * The details of the **sketch generation rules** and **init population rules** are defined in sketch_policy.cc. The base classes are **SketchGenerationRule** and **PopulationGenerationRule** respectively. 
+            ```c++            
+            /********** Sketch generation rules **********/
+            static RuleSkipStage rule_skip_stage;
+            static RuleAlwaysInline rule_always_inline;
+            static RuleMultiLevelTiling rule_multi_level_tiling;
+            static RuleMultiLevelTilingWithFusion rule_multi_level_tiling_with_fusion;
+            static RuleAddCacheRead rule_add_cache_read_stage;
+            static RuleAddCacheWrite rule_add_cache_write_stage;
+            static RuleAddRfactor rule_add_rfactor;
+            static RuleCrossThreadReduction rule_cross_thread_reduction;
+            static RuleSimplifyComputeWithConstTensor rule_simplify_compute_with_const_tensor;
+            static RuleSpecialComputeLocationGPU rule_special_compute_location_gpu;
+
+            /********** Init population rules **********/
+            static InitFillTileSize init_fill_tile_size;
+            static InitChangeComputeLocation init_change_compute_location;
+            static InitParallel init_parallel;
+            static InitUnroll init_unroll;
+            static InitVectorization init_vectorization;
+            static InitThreadBind init_thread_bind;
+            ``` 
+        * The **Search** method of sketchpolicy show the workflow of how the ansor works. Train cost model(not first round) -> SearchOneRound -> InferBound of the best_states and random_states -> PickStatesWithEpsGreedy(typically, the num equals to the num_measures_per_round), i.e., candidates selection -> Meaure the selected candidate states(loop state) -> continue to next round... 
+        * For **SearchOneRound**, 1. **GenerateSketches** -> 2. **SampleInitPopulation** -> 3. **EvolutionarySearch**, here insert the preivous measured good states to init_population controled by para: sample_init_use_measured_ratio.
+        * **GenerateSketches**: generate the sketches based on the sketch rules of the search policy. start with the init_state <-> stage.size()-1(stage_id), push the state to currently working Array\<State\>, for the stage in array, try all sketch_rules, if **MeetCondition** ret is not skip cond, note the **stage_id** indicates the position of the rule apply at. Generally, the **stage_id** decreases when one rule applied on the state, but schedule primitive like cache_read/cache_write will add stage in the computeDAG, thus the stage_id remains. Also, some rules(inline, tiling) will change the loop state(CopyOnWrite way), thus state may changes during the process. The **order** in the sketch rules directly influences the sketch generation, since one rule can affect the condition checking for other rules. 
