@@ -226,7 +226,7 @@
     * 首先搞清楚，啥时候才能 double_buffer，看 Pass里面，double_buffer_scope必须在一个 for 循环中；这时候看 scheduleops 以及 schedule_postproc_to_primfunc的时候，看不出什么端倪，因为正常 MakePipline的时候；即使 set_stage 为 double_buffer_scope，此 AttrStmt必不在循环中，之后看例子，是因为 double_buffer这玩意，必须配合到 compute_at一起用，attach 到某个循环轴上，也会在 loop中。另一种情形就是使用 IRBuilder 在 for 中 allocate 并 set 对应 buffer_var 为 double_buffer_scope, emit成 extern_op
     * Finish, not summarized.
 
-### *2020.4.19*
+### *2021.4.19*
 * ***Auto-schedule Get Started***
     * Typical Flow: 
          * Describle computation rule(**register_workload**)
@@ -239,7 +239,7 @@
          * Brief impression, the core things are: search_task.py, search_policy,py, cost_model/cost_model.py & xgb_model.py, measure.py.
          * Next things: follow the workflow, read original paper and analyze the source codes from python to cxx side.
 
-### *2020.4.20 & 4.21*
+### *2021.4.20 & 4.21*
 * ***Ansor reading notes***
     * **Contributions**:
         * A mechanism to generate a **large hierarchical search space** of tensor programs for a **computational graph**.
@@ -269,7 +269,7 @@
         * ***Short usage of the special instructions(tensorcore, arm).***, this may due to the weakness of the current tensorization way to utilize the special instruction ? 
         * ***Combination of ansor and graph-level optimization***, i.e., the end-to-end optimization for the whole network graph.
 
-### *2020.4.22 & 4.24*
+### *2021.4.22 & 4.24 & 4.25 & 4.26 & 4.27 & 4.28 & 4.29 & 4.30*
 * ***auto-schedule user-defined operator tracing***:
     * **workload_registry.py**: Workload registration and serialization.
         * WORKLOAD_FUNC_REGISTRY = {} -> Global workload function and hash key registry; 1). user registerd task via decorator **register_workload**. 2). extract tasks from relay program via function **register_workload_tensors**. **register_workload** will register the function_name & func_pointer to the WORKLOAD_FUNC_REGISTRY.
@@ -364,3 +364,7 @@
         * The **Search** method of sketchpolicy show the workflow of how the ansor works. Train cost model(not first round) -> SearchOneRound -> InferBound of the best_states and random_states -> PickStatesWithEpsGreedy(typically, the num equals to the num_measures_per_round), i.e., candidates selection -> Meaure the selected candidate states(loop state) -> continue to next round... 
         * For **SearchOneRound**, 1. **GenerateSketches** -> 2. **SampleInitPopulation** -> 3. **EvolutionarySearch**, here insert the preivous measured good states to init_population controled by para: sample_init_use_measured_ratio.
         * **GenerateSketches**: generate the sketches based on the sketch rules of the search policy. start with the init_state <-> stage.size()-1(stage_id), push the state to currently working Array\<State\>, for the stage in array, try all sketch_rules, if **MeetCondition** ret is not skip cond, note the **stage_id** indicates the position of the rule apply at. Generally, the **stage_id** decreases when one rule applied on the state, but schedule primitive like cache_read/cache_write will add stage in the computeDAG, thus the stage_id remains. Also, some rules(inline, tiling) will change the loop state(CopyOnWrite way), thus state may changes during the process. The **order** in the sketch rules directly influences the sketch generation, since one rule can affect the condition checking for other rules. 
+        * **GenerateSketches** based on the **SketchGenerationRule**, the two key methods are: **MeetCondition**, **Apply**, the **Apply** method will do the primitives on the **State** and return the **State** with position id of the stage, the **State** schedule primitive do the **CopyOnWrite** to change the current State by add **transform_steps**, the added step contains the stage_id to indicate in which stage.
+        * **SampleInitPopulation**: to generate sample_init_min_pop out_states, for the init_rules, **randomly** choose a **sketch**, and apply init_rule with **random factors**. Then filter the invalid generated states, call the **program_cost_model->Predict** to select candidate states to ret out_states.
+        * The **PopulationGenerationRule** key is **Apply** method, typically, use **CopyOnWrite** way to rewrite the loop state, the goal is to generate **random factors** for each specialized init_rule.
+        * **EvolutionarySearch**: (TODO) Placeholder
