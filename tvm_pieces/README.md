@@ -361,10 +361,43 @@
             static InitVectorization init_vectorization;
             static InitThreadBind init_thread_bind;
             ``` 
-        * The **Search** method of sketchpolicy show the workflow of how the ansor works. Train cost model(not first round) -> SearchOneRound -> InferBound of the best_states and random_states -> PickStatesWithEpsGreedy(typically, the num equals to the num_measures_per_round), i.e., candidates selection -> Meaure the selected candidate states(loop state) -> continue to next round... 
-        * For **SearchOneRound**, 1. **GenerateSketches** -> 2. **SampleInitPopulation** -> 3. **EvolutionarySearch**, here insert the preivous measured good states to init_population controled by para: sample_init_use_measured_ratio.
-        * **GenerateSketches**: generate the sketches based on the sketch rules of the search policy. start with the init_state <-> stage.size()-1(stage_id), push the state to currently working Array\<State\>, for the stage in array, try all sketch_rules, if **MeetCondition** ret is not skip cond, note the **stage_id** indicates the position of the rule apply at. Generally, the **stage_id** decreases when one rule applied on the state, but schedule primitive like cache_read/cache_write will add stage in the computeDAG, thus the stage_id remains. Also, some rules(inline, tiling) will change the loop state(CopyOnWrite way), thus state may changes during the process. The **order** in the sketch rules directly influences the sketch generation, since one rule can affect the condition checking for other rules. 
-        * **GenerateSketches** based on the **SketchGenerationRule**, the two key methods are: **MeetCondition**, **Apply**, the **Apply** method will do the primitives on the **State** and return the **State** with position id of the stage, the **State** schedule primitive do the **CopyOnWrite** to change the current State by add **transform_steps**, the added step contains the stage_id to indicate in which stage.
-        * **SampleInitPopulation**: to generate sample_init_min_pop out_states, for the init_rules, **randomly** choose a **sketch**, and apply init_rule with **random factors**. Then filter the invalid generated states, call the **program_cost_model->Predict** to select candidate states to ret out_states.
+        * The **Search** method of sketchpolicy show the workflow of how the ansor works. 
+            * Train cost model(not first round)
+            * SearchOneRound 
+            * InferBound of the best_states and random_states 
+            * PickStatesWithEpsGreedy(typically, the num equals to the num_measures_per_round), i.e., candidates selection 
+            * Meaure the selected candidate states(loop state) 
+            * continue to next round... 
+        * For **SearchOneRound**: 
+           * **GenerateSketches** 
+           * **SampleInitPopulation** 
+           * **EvolutionarySearch**, here insert the preivous measured good states to init_population controled by para: sample_init_use_measured_ratio.
+        * **GenerateSketches**: generate the sketches based on the sketch rules of the search policy. 
+           * start with the init_state <-> stage.size()-1(stage_id), push the state to currently working Array\<State\>
+           * for the stage in array, try all sketch_rules, if **MeetCondition** ret is not skip cond, note the **stage_id** indicates the position of the rule apply at. 
+           * Generally, the **stage_id** decreases when one rule applied on the state, but schedule primitive like cache_read/cache_write will add stage in the computeDAG, thus the stage_id remains. 
+           * Also, some rules(inline, tiling) will change the loop state(CopyOnWrite way), thus state may changes during the process. 
+           * The **order** in the sketch rules directly influences the sketch generation, since one rule can affect the condition checking for other rules. 
+        * **GenerateSketches** based on the **SketchGenerationRule**, the two key methods are: **MeetCondition**, **Apply**.
+           * the **Apply** method will do the primitives on the **State** and return the **State** with position id of the stage, the **State** schedule primitive do the **CopyOnWrite** to change the current State by add **transform_steps**, the added step contains the stage_id to indicate in which stage.
+        * **SampleInitPopulation**: to generate sample_init_min_pop out_states
+           * for the init_rules, **randomly** choose a **sketch**, and apply init_rule with **random factors**. 
+           * Then filter the invalid generated states, call the **program_cost_model->Predict** to select candidate states to ret out_states.
         * The **PopulationGenerationRule** key is **Apply** method, typically, use **CopyOnWrite** way to rewrite the loop state, the goal is to generate **random factors** for each specialized init_rule.
-        * **EvolutionarySearch**: (TODO) Placeholder
+        * **EvolutionarySearch**:  
+            * Use **heap** to keep the best states in the search process, the compare obj is the score returned by the program_cose_model. 
+            * For all mutation rules, based on rule_weights, **ComputePrefixSumProb** to get the prob for applying each mutation rule.
+            * Start iterately search
+            * First, prune the invalid state, use program_cost_model predict the init/prev_population states. Based on the init states and scores, construct the heap. If the heap is not empty, update the heap with previous searched states.
+            * Also, **ComputePrefixSumProb** for population scores to get the pop_selection_prob (state).
+            * **NodeCrossOver not supported now**
+            * Do mutation, randomly choose the state, and then randomly select the mutation rule to apply rule on the state (if uniform_dist < mutation_prob). Until the population size reach the defined param.
+            * Continue search.
+            * Sort the heap, add state to best_states and ret. 
+        * **PickStatesWithEpsGreedy**: for simply, when inputs < num_good(since will have some random states, **eps_greedy** param), pick best_states first, otherwise pick the random_states first. Then add the picked states(candidates) in **measured_states_set_** and **measured_states_vector_** for next round search won't re-pick again.
+    * loop_state.h/loop_state.cc
+        * TODO 
+    * transform_step.h/transform_step.cc
+        * TODO 
+    * sketch_policy_rules.h/sketch_policy_rules.cc  
+        * TODO 
