@@ -113,9 +113,11 @@
     * 对于 BufferLoadNode，check buffer存在后对于bounds和indices对于Index重新变换，之后主要返回Buffer vload (tir::Load)，Flatten体现，计算偏移通过 BufferOffset -> ElemOffset；同理对于BufferStoreNode，也是一样的流程，不过为 Buffer vstr::Store)，偏移计算也是通过 BufferOffset -> ElemOffset将多维访问变为一维；
     * 对于VarNode，LoadNode，StoreNode则判断是否需要对其中 Var进行 remap(仅当ExternOp时需要)，不需要则直接返回即可；
     * 对于 ExternOp则调用 handle_bind_scope进行处理，因为其在Provide的时候会对Op 传入的外部Buffer和该Op output tensor 和 input tensor 添加 buffer_bind_scope, 经过先前的处理, tensor已经为对应的buffer, 主要作用是先做 begin, extents的变换，后将对应buffer make Slice为对应的 shape 后调用 ArgBinder 对于将 buffer 中 Var bind 至 在buf_map中找到的 target buffer对应的 Var上，具体其实是在var_remap中添加对应 Var的替换关系后，Visit AttrStmt中的 body, 而 body中的 VarNode, LoadNode, StoreNode中对应的 Var则会被替换为对应的 target buffer 的 Var, 对 buffer_bind_scope AttrStmt处理完成之后，则清除掉对应的 var_remap关系；
+    * TODO(添加 ProducerRealizeNode -> Postproc_to_Primfunc 中 Buffer -> Flatten 中 Buffer中间的差异，以及为什么整这么复杂)
 ### *2021.3.7*
 * ***Some notes***
-    * Writing a Customized Pass: https://tvm.apache.org/docs/tutorials/dev/low_level_custom_pass.html#sphx-glr-tutorials-dev-low-level-custom-pass-py以前还真没注意怎么在 python 端写 tvm lower pass的，基本还是和 cxx side 差不多， python 端更加不灵活吧stmt_functor 中 post_order_visit 获取想 modify 的 IR， stmt_functor.ir_transform进行变换， stmt_functor.substitue替换，将 Pass可通过在 tvm.transform.PassContext 中添加
+    * Writing a Customized Pass: https://tvm.apache.org/docs/tutorials/dev/low_level_custom_pass.html#sphx-glr-tutorials-dev-low-level-custom-pass-py 
+    * 以前还真没注意怎么在 python 端写 tvm lower pass的，基本还是和 cxx side 差不多， python 端更加不灵活吧stmt_functor 中 post_order_visit 获取想 modify 的 IR， stmt_functor.ir_transform进行变换， stmt_functor.substitue替换，将 Pass可通过在 tvm.transform.PassContext 中添加
     * 从 compile models来看，首先是 relay.frontend.from_xxx， 后创建 graph executor， relay.build_module.create_executor那其实 第一步主要就是解析 不同前端框架 保存模型参数的一个过程，然后匹配成 relay_func 的格式；其中不同前端中的OP(conv, pool)之类的会被的等价转换为 relay 中 op，relay中 build_module过程中调用cxx端的 RelayBuildModule 中 build，后调用  BuildRelay， 其中会创建 graph_codegen 通过  _GraphRuntimeCodegen 创建  GraphRuntimeCodegenModule 调用其中 Codegen方法，在 visit 其中 CallNode时候，_CompileEngineLower，其中会根据 OpStrategy完成对不同OP实现的选择
 ### *2021.3.13*
 * ***Tensor IR First Impression***
@@ -126,7 +128,7 @@
 * ***Storage Rewrite Pass***
     * Function: Memory access pattern analysis and optimization, re-write data access to enable memory shareing as mush as possible.
     * Rewrite calls: LinearAccessPatternFinder -> LivenessAnalysis -> PlanMemory -> PrepareNewAlloc -> rewrite by operator() -> MakeAttach 
-    * LinearAccessPatternFinder ---> 主要作用是:  
+    * **LinearAccessPatternFinder** ---> 主要作用是:  
       * 1). 对每个storage_scope所对应的 Var 在 alloc_info_ info中添加, 并set storage scope.  
       * 2). 对于For/IfThenElse/Assert等stmt, thread_extent/extern_scope/virtual_thread对应的attr stmt, 调用 VisitNewScope 将其分割开, 每个VisitNewScope 会在 linear_seq_ 添加对应的 before_scope, after_scope, 而该 scope 中的分析递归 visit op即可, 因此会有 nested_scope的情形出现；每次进入会在 scope_ 中 push StmtEntry, 而 after_scope后则 pop, 借用 scope_ stack 可以获取到当前的 Stmt Node处于 哪个 scope 中, 使用 scope_level 来标识. 每次的 touched vars 仅在 after_scope时候更新，因此 touched size 不为 0的 offset均为负.  
       * 3). 那么对于 Allocate Stmt, 获取对应 buffer_var 的 AllocEntry, 更新对应 Allocate Stmt以及 scope_level 为当前 Allocate Stmt所在位置.
@@ -136,12 +138,15 @@
       * linear_seq_: vector<StmtEntry\>, 其中包含了所有scope的起始和终止(bef_scope, aft_scope), 可获取每个scope中对应访问(R/W)过的所有 Vars;
       * alloc_info_: unordered_map<const VarNode*, AllocEntry\>, 可获取得到所有 Var所对应的 Alloc (stmt,scope_level, storage_scope).
       * 在这里需要注意理解 scope, scope主要在这里用以来划定 程序局部区域, 其包含了范围那些变量的信息, 可以来帮忙界定对应 alloc 的生存范围, 比如若存在某个变量在此区域后就未被使用了, 那么其可在该 scope被 kill, 因此后续则会被添加到 scope 对应的 kill vars中; 若存在某个变量在该区域第一次使用, 那么其应在这里被 gen, 也就是分配内存的操作直到这里才开始进行; 而 linear_seq_ 中 scope 往往是 nested scope, 对应 offset很可能出先类似 [8, [3, [1, -1], -3], [3, [1, -1], -3], -8], 注意这里的 从 + 进后 从对应 - 出的时候,  若有 kill vars, 则 free掉; 在后续和该 scope 同级的 scope 就有复用 被释放掉 vars的机会 (storage rewrite 的主要目的). 
-    * LivenessAnalysis:  find gen and kill point of each variable by filling the event_map_ ---> unordered_map<const Object*, EventEntry\>
+    * **LivenessAnalysis**:  find gen and kill point of each variable by filling the event_map_ ---> unordered_map<const Object*, EventEntry\>
       * EnventEntry: vector<cosnt VarNode*\> gen, vector<const VarNode*\> kill   
       * kill point: 逆序遍历 linear_seq_, 即从最后的 nested scope开始向前, 即从最后使用 touched vars的scope开始, 此即为其中scope touch vars的生命周期, 故 对应Var 因在之后被kill. 每次在 event_map_ 中 对scope stmt 对应的 EnventEntry的 kill 中添加 touched vars (not visited yet).
       * gen point: 顺序遍历 linear_seq_, 从最初的nested_scope 开始，即最先使用该 Var的 scope 开始, 故对应 Var因在此前被 gen. 每次在event_map_ 中对 scope stmt 对应的 EventEntry 的 gen中添加 touch vars (not visited yet).
-    * PlanMemory: Utilize linear_seq_ and alloc_info_ to do memory planning  
-      *  PlanMemory所使用信息: linear_seq_ -> scope 对应 stmt 及 scope 中 touched vars; alloc_info_ -> VarNode 所对应 Alloc Stmt, storage_scope and scope_level; event_map_ -> 每个 scope 对应 stmt 所包含的 gen vars & kill vars;
+    * **PlanMemory**: Utilize linear_seq_ and alloc_info_ to do memory planning  
+      *  PlanMemory所使用信息: 
+         * linear_seq_ ---> scope 对应 stmt 及 scope 中 touched vars; 
+         * alloc_info_ ---> VarNode 所对应 Alloc Stmt, storage_scope and scope_level; 
+         * event_map_ ---> 每个 scope 对应 stmt 所包含的 gen vars & kill vars;
       * ```c++
         for (i = 0; i < seq.size(); i++)  
             find seq[i].stmt in event_map_  
@@ -170,25 +175,25 @@
                     for (var : stmt reated kill vars)
                         Free(var) if not inplace substitute
         ```
-     * 这个 PlanMemory还是相当复杂...  
+     * **PlanMemory**比较复杂...  
        * 1).首先对event_map_中对应的**gen vars**(此时外层先被access)进行**内存分配**即创建对应的 StorageEntry 并添加进入 alloc_map_中; 分配前做 InplaceOp检测，主要会借助 InplaceOpVerifier 检测 inplace 操作，若是对var进行合并，复用之前 src的 StorageEntry即可；若不是inplace，则调用 FindAlloc 创建新的 StorageEntry 并进行内存分配；之后将对应分配结果添加进入 alloc_map_中. 
        * 2). 之后判断是否 enter/exit new_scope，这个主要跟 thread强相关，在 AttrStmt为 thread_extent 和 virtual_thread的时候会对 thread_scope_ 更新，在 For 为 parallel(即做了 parallel) 优化后的也会更新 thread_scope_. 
-       * 3). 最后对 event_map_中对应 **kill vars**, offset为负(内层先被access, also free first). 针对对应的 kill var，若其没有被 inpalce操作，则 Free, 其实是在const_free_map_ & sym_free_list_中添加 var 对应 StorageEntry，从而被之后的 FindAlloc时可复用. 比如 [8, [3, 1, -1, -3], [3, 1, -1, -3], -8], 进行是否可 free 的判断顺序会为, -1, -3, -1, -3, -8; 可以看出 nested_scope 中 free 后的 var 的复用也是同 free scope 所同级别的 scope, 不被 free scope所包含在内; 
-     * PlanMemory -> InplaceOpVerifier  
-       * 主要验证刚被 kill 的 var(src) 是否 可被下一个 gen 的 var(dst)所复用(也就是当前 scope 存在gen var后立马释放掉 对应 var, 那么对应的op很有可能就是 inplace opeartion); 这个 Verifier主要验证  dst[index\] = f(src[index\]), 具体判断规则看代码;
-     * PlanMemory -> FindAlloc   
+       * 3). 最后对 event_map_中对应 **kill vars**, offset为负(内层先被access, also free first). 针对对应的 kill var，若其没有被 inpalce操作，则 Free, 其实是在const_free_map_ & sym_free_list_中添加 var 对应 StorageEntry，从而被之后的 FindAlloc时可复用. 比如 [8, [3, [1, -1], -3], [3, [1, -1], -3], -8], 进行是否可 free 的判断顺序会为, -1, -3, -1, -3, -8; 可以看出 nested_scope 中 free 后的 var 的复用也是同 free scope 所同级别的 scope, 不被 free 当前所在的scope所包含在内; 
+     * **PlanMemory -> InplaceOpVerifier**  
+       * 主要验证刚被 kill 的 var(src) 是否 可被下一个 gen 的 var(dst)所复用(也就是当前 scope 存在gen var后 立马释放 对应var, 那么对应的op很有可能就是 inplace opeartion); 这个 Verifier主要验证  dst[index\] = f(src[index\]), 具体判断规则看代码;
+     * **PlanMemory -> FindAlloc**   
        * 在没有 inplace 复用的情况下, 调用 FindAlloc 进行 StorageEntry 的分配; 
        * FindAlloc/Free 和 linear_seq_中scope 对应 event_map_中 gen/kill vars进行联动易求完成对前一 scope free的 vars 的复用; 
        * Free 的 Vars 会首先找到 alloc_map_ 中对应 StorageEntry, 并根据alloc const_n_bits 是否为 0 将对应 StorageEntry 添加进入 const_free_map(const size) 及 sym_free_list(dynamic size)中; 
-       * 若在 const_free_map / sym_free_list 中找到满足条件的 StorageEntry, 则复用对应的 StorageEntry, 且返回后在对应的牵扯 allocs中添加到该 var对应 alloc, 即该alloc会被合并; 没找到就很直接啊，NewAlloc就行了, NewAlloc create 的 new StorageEntry 会被添加进 alloc_vecs_中; 
+       * 若在 const_free_map / sym_free_list 中找到满足条件的 StorageEntry, 则复用对应的 StorageEntry, 且返回后在对应的牵扯 allocs中添加到该 var对应 alloc, 即该alloc会被合并; 没找到就很直接，NewAlloc就行了, NewAlloc create 的 new StorageEntry 会被添加进 alloc_vecs_中; 
        * 此时的 attach_scope_ 为外部传入, 而该 attach_scope 为 thread_scope_ 尽在 PlanNewScope的时候会被更新;
-     * PlanMemory -> PlanNewScope: 这个还需更深入理解下 thread_scope_ 切换的时机, 目前来看 AttrStmt(thread_extent/virtual_thread) / For(parallel) 层级的 scope 的 gen vars是在这之前完成的, gen vars成功分配 StorageEntry之后才会进入这个 PlanNewScope, 所以 update thread_scope_ 之后 gen vars 对应的 scope 应包含在当前这个 scope之内, 这之内的 gen vars就希望进行局部 alloc/free, 且不可被其他 var复用分配内存;
-     * PrepareNewAlloc -> 在上述 alloc_map_, alloc_vecs_这些准备好了之后 fill attach_map_  
+     * **PlanMemory -> PlanNewScope**: 这个还需更深入理解下 thread_scope_ 切换的时机, 目前来看 AttrStmt(thread_extent/virtual_thread) / For(parallel) 层级的 scope 的 gen vars是在这之前完成的, gen vars成功分配 StorageEntry之后才会进入这个 PlanNewScope, 所以 update thread_scope_ 之后 gen vars 对应的 scope 应包含在当前这个 scope之内, 这之内的 gen vars就希望进行局部 alloc/free, 且不可被其他 var复用分配内存;
+     * **PrepareNewAlloc** -> 在上述 alloc_map_, alloc_vecs_这些准备好了之后 fill attach_map_  
        * 首先将 alloc_vecs中所有的 StorageEntry 中 <attach_scope_, StorageEntry*\>作为 kv 对添加进入 attach_map_中
        * 遍历 attach_map_ 中 kv对, 遍历同一 key (attach_scope) 中所有 StorageEntry 更新其中 new_alloc 为新创建的 Allocate; 这当中会根据 StorageEntry中 allocs的个数判断是否进行 allocate合并. allocs.size() > 0 就是有多个 alloc 共享这个 StorageEntry 此时新创建 Allocate 分配大小为 几个 alloc中最大; 若为0, 直接create Allocate即可.
-     * Rewrite: 使用 attach_map_ 对 当前 stmt进行 rewrite, 因在之前的处理当中, inplace op被合并, 可被复用的内存已被复用; 针对 thread 的 thread_extent, virtual_thread, For parallel, 对应的 Alloc 被 attach 到 当前的 op (AttrStmt, For op); 因此, 此时 attach_map_ 含有 nullptr 对应 global allocs, others attached op 对应的 local allocs. 那么当前的策略是:  
+     * **Rewrite**: 使用 attach_map_ 对 当前 stmt进行 rewrite, 因在之前的处理当中, inplace op被合并, 可被复用的内存已被复用; 针对 thread 的 thread_extent, virtual_thread, For parallel, 对应的 Alloc 被 attach 到 当前的 op (AttrStmt, For op); 因此, 此时 attach_map_ 含有 nullptr 对应 global allocs, others attached op 对应的 local allocs. 那么当前的策略是:  
        * 1). 对 thread 相关的 thread_extent, virtual_thread, For, 若 attach 到对应 op, 则 MakeAttach 拼接 该 attach_scope 对应的 所有内存分配 StorageEntry对应 alloc 和 op body; 原地 alloc, 且 alloc 对应的 body为该 op body, 此时其作用范围仅限 op_body 对应部分, 超出即释放.
-       * 2). 对于其他 Stmt Node, 如 StoreNode, LoadNode, VarNode, CallNode 等，则在 alloc_map_中查询对应新 alloc 的 buffer_var 并更新其中 var的部分后 return modified stmt 即可. 而 attach_scope 为 nullptr 的 global 内存分配 (StorageEntry), 会在所有 stmt更新完成之后, 调用 MakeAttach 拼接 该 attach_scope(global) 对应的所有 allocs 和 stmt.
+       * 2). 对于其他 Stmt Node, 如 StoreNode, LoadNode, VarNode, CallNode 等，则在 alloc_map_中查询对应新 alloc 的 buffer_var 并更新其中 var的部分后 return modified stmt 即可. 而 attach_scope 为 nullptr 的 global 内存分配 (StorageEntry), 会在所有 stmt更新完成之后, 调用 MakeAttach 拼接 该 attach_scope(global) 对应的所有 allocs 和 stmt, 即此时会将这部分 alloc提升至全局.
 
 ### *2021.3.23 & 24 & 25 & 26 & 27 & 28*
 * ***Schedule Lang***  
@@ -201,19 +206,29 @@
     *  InjectInline ---> Done
     *  InjectAttach ---> Done
     *  Cache_read ---> Done
-    *  Cache_write ---> 3.28
+    *  Cache_write ---> (TODO)
     *  Message passing helpers ---> MakeBoundCheck, PassUpBoundCheck, PassDownBitMaskOr (Done), remaining range processing
     *  RebaseNonZeroMinLoop ---> Done
-    *  InferBound ---> 3.28
+    *  InferBound ---> (TODO)
     *  LegalizeInvalidAttach ---> Done
     *  ComputeOp Body 
-        * Main Process: DetectComputeType -> MakeComputeStmt
-        * DetectComputeType: 根据对应 stage 中 iter_var_attrs的属性，区分出 kTensorize(MakeTensorize), kCrossThreadReduction(MakeCrossThreadReduction), kNormal(MakeComputeStmt).
-        * MakeComputeStmt: 构建ComputeStmt的主要过程: 1). Create ComputeLoopNest -> 2). MakeIfNest -> 3). 有 reduce_axis, MakeReduction，拼接 CommonNest 和 ReduceNest，并完成最终body拼接 -> 4). 无 reduce_axis, Merge provide and main_nest 
-        * ComputeLoopNest: 1). Call MakeLoopNest创建主循环，此函数的主要作用是根据leaf_iter_vars 构建Loop中的 For Nest, 其中会根据 iter_var 的 IterVarAttr的不同，采取不同的行为，并添加 AttrStmt；在每个 IterVar 创建完成之后会利用 loop_scope的 AttrStmt进行标记，会在compute_at中用到；2). Call MakeBoundCheck 检查 main_nest当中是否需要加入额外的 If判断，其中会调用PassUpBoundCheck来对Split, Fuse, Rebase等 RelationNode进行处理；3). 若存在 reduce_axis, 需要在正确的地方插入对应 Reduce的初始化语句(init_nest)，具体调用 PassDownBitMaskOr 来判断进行过 Split，Fuse，Rebase等操作的IterVar是否为reduce_axis；之后在生成 init_nest的时候，会找到reduce_axis出现的位置，以此开始，并且会跳过所有的非 reduce_axis的iter var，而 init_nest 和 init_predicated的生成调用的也同样是 MakeLoopNest 和 MakeBoundCheck，不过此次会生成新的 iter_var, 以".init"为后缀；4). 此时 num_common_loop 在是否有reduce_axis的情况下不同，即 begin_loop & leaf_iter_vars.size();
-        * MakeIfNest: 根据 predicates 生成 IfThenElse Node；
-        * If reduce_axis: 1). 通过 MakeReduction 获取到内部的 body (actual computation)，init, provide，并将 init body 拼接在 init_nest的 body中；2). 根据 num_common_loop将 main_nest分为 common, reduce，并在reduce body拼接为provide，后和 init相拼后合入 common中； common->init->reduce->provide;
-        * If no reduce axis: 这个相对简单，MakeProvide (ProducerStore)获取 provide body, 和 main_nest一拼就完事；
+        * Main Process: **DetectComputeType** ---> **MakeComputeStmt**
+        * **DetectComputeType**: 根据对应 stage 中 iter_var_attrs的属性，区分出 kTensorize(MakeTensorize), kCrossThreadReduction(MakeCrossThreadReduction), kNormal(MakeComputeStmt).
+        * **MakeComputeStmt**: 构建ComputeStmt的主要过程: 
+          * 1). Create ComputeLoopNest 
+          * 2). MakeIfNest  
+          * 3). 有 reduce_axis, MakeReduction，拼接 CommonNest 和 ReduceNest，并完成最终body拼接  
+          * 4). 无 reduce_axis, Merge provide and main_nest 
+        * **ComputeLoopNest**: 
+          * 1). Call MakeLoopNest创建主循环，此函数的主要作用是根据leaf_iter_vars 构建Loop中的 For Nest, 其中会根据 iter_var 的 IterVarAttr的不同，采取不同的行为，并添加 AttrStmt；在每个 IterVar 创建完成之后会利用 loop_scope的 AttrStmt进行标记，会在compute_at中用到；
+          * 2). Call MakeBoundCheck 检查 main_nest当中是否需要加入额外的 If判断，其中会调用PassUpBoundCheck来对Split, Fuse, Rebase等 RelationNode进行处理；
+          * 3). 若存在 reduce_axis, 需要在正确的地方插入对应 Reduce的初始化语句(init_nest)，具体调用 PassDownBitMaskOr 来判断进行过 Split，Fuse，Rebase等操作的IterVar是否为reduce_axis；之后在生成 init_nest的时候，会找到reduce_axis出现的位置，以此开始，并且会跳过所有的非 reduce_axis的iter var，而 init_nest 和 init_predicated的生成调用的也同样是 MakeLoopNest 和 MakeBoundCheck，不过此次会生成新的 iter_var, 以".init"为后缀；
+          * 4). 此时 num_common_loop 在是否有reduce_axis的情况下不同，即 begin_loop & leaf_iter_vars.size();
+        * **MakeIfNest**: 根据 predicates 生成 IfThenElse Node；
+        * **If reduce_axis**: 
+          * 1). 通过 MakeReduction 获取到内部的 body (actual computation)，init, provide，并将 init body 拼接在 init_nest的 body中；
+          * 2). 根据 num_common_loop将 main_nest分为 common, reduce，并在reduce body拼接为provide，后和 init相拼后合入 common中； common->init->reduce->provide;
+        * **If no reduce axis**: 这个相对简单，MakeProvide (ProducerStore)获取 provide body, 和 main_nest一拼就完事；
         * 最后将 ComputeStmt中的 IterVar 替换为 PrimExpr.
 
 ### *2021.3.29*
@@ -269,7 +284,7 @@
         * ***Short usage of the special instructions(tensorcore, arm).***, this may due to the weakness of the current tensorization way to utilize the special instruction ? 
         * ***Combination of ansor and graph-level optimization***, i.e., the end-to-end optimization for the whole network graph.
 
-### *2021.4.22 & 4.24 & 4.25 & 4.26 & 4.29 & 4.30*
+### *2021.4.22 & 4.24 & 4.25 & 4.26 & 4.30 & 5.1 & 5.2 & 5.3*
 * ***auto-schedule user-defined operator tracing***:
     * **workload_registry.py**: Workload registration and serialization.
         * WORKLOAD_FUNC_REGISTRY = {} -> Global workload function and hash key registry; 1). user registerd task via decorator **register_workload**. 2). extract tasks from relay program via function **register_workload_tensors**. **register_workload** will register the function_name & func_pointer to the WORKLOAD_FUNC_REGISTRY.
@@ -395,7 +410,7 @@
             * Continue search.
             * Sort the heap, add state to best_states and ret. 
         * **PickStatesWithEpsGreedy**: for simply, when inputs < num_good(since will have some random states, **eps_greedy** param), pick best_states first, otherwise pick the random_states first. Then add the picked states(candidates) in **measured_states_set_** and **measured_states_vector_** for next round search won't re-pick again.
-    * loop_state.h/loop_state.cc
+    * loop_state.h/loop_state.cc/transform_step.h/transform_step.cc
         * **StageNode** class: lightweight state in tvm/te/schedule, the members are listed as follows: 
             ```c++
             class StageNode : public Object {
@@ -442,7 +457,27 @@
             bool concrete;
             ``` 
         * **State** ref support schedule primitives: bind, parallel, unroll, vectorize, fuse, pragma, reorder, split, storage_align. new two: follow_split, follow_fused_split, these two use split factors from previous steps; compute_at, compute_inline, compute_root; cache_read, cache_write, rfactor. Use stage_id to get the stage to be applied on.
-    * transform_step.h/transform_step.cc
-        * TODO 
+        * **State** construct from the **Ops(tvm::te::Operation)**, the **stages** added to the StateNode is auto_schedule defined **Stage**.
+        * The impl of the schedule primitives for the State:
+            * General Process: (TODO) 
+            * **bind, parallel, unroll, vectorize** almost same impl ---> **AnnotationStep**
+                * 1). get the Stage via stage_id
+                * 2). AnnotationStep with the right annotation_type
+                * 3). CopyOnWrite to add the step in transform_steps 
+                * 4). call the step->ApplyToState(this) to change the related stage in the State. For AnnotationStep, change the Iterator annotation.
+            * **fuse**: -> FuseStep
+            * **pragam**: -> PragmaStep
+            * **reorder**: -> ReorderStep
+            * **split**: -> SplitStep
+            * **follow_split**: -> FollowSplitStep
+            * **follow_fused_split**: -> FollowFusedSplitStep
+            * **storage_align**: -> StorageAlignStep
+            * **compute_at**: -> ComputeAtStep
+            * **compute_inline**: -> ComputeInlineStep
+            * **compute_root**: -> ComputeRootStep
+            * **cache_read**: -> CacheReadStep
+            * **cache_write**: -> CacheWriteStep
+            * **rfactor**: -> RfactorStep
     * sketch_policy_rules.h/sketch_policy_rules.cc  
         * TODO 
+    * TODO ---> as, Downcast, copy_on_write, operator->(), GetRef等
