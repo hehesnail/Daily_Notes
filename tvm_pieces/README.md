@@ -170,7 +170,7 @@
                     for (var : stmt reated kill vars)
                         Free(var) if not inplace substitute
         ```
-     * 这个 PlanMemory还是相当复杂啊...  
+     * 这个 PlanMemory还是相当复杂...  
        * 1).首先对event_map_中对应的**gen vars**(此时外层先被access)进行**内存分配**即创建对应的 StorageEntry 并添加进入 alloc_map_中; 分配前做 InplaceOp检测，主要会借助 InplaceOpVerifier 检测 inplace 操作，若是对var进行合并，复用之前 src的 StorageEntry即可；若不是inplace，则调用 FindAlloc 创建新的 StorageEntry 并进行内存分配；之后将对应分配结果添加进入 alloc_map_中. 
        * 2). 之后判断是否 enter/exit new_scope，这个主要跟 thread强相关，在 AttrStmt为 thread_extent 和 virtual_thread的时候会对 thread_scope_ 更新，在 For 为 parallel(即做了 parallel) 优化后的也会更新 thread_scope_. 
        * 3). 最后对 event_map_中对应 **kill vars**, offset为负(内层先被access, also free first). 针对对应的 kill var，若其没有被 inpalce操作，则 Free, 其实是在const_free_map_ & sym_free_list_中添加 var 对应 StorageEntry，从而被之后的 FindAlloc时可复用. 比如 [8, [3, 1, -1, -3], [3, 1, -1, -3], -8], 进行是否可 free 的判断顺序会为, -1, -3, -1, -3, -8; 可以看出 nested_scope 中 free 后的 var 的复用也是同 free scope 所同级别的 scope, 不被 free scope所包含在内; 
@@ -269,7 +269,7 @@
         * ***Short usage of the special instructions(tensorcore, arm).***, this may due to the weakness of the current tensorization way to utilize the special instruction ? 
         * ***Combination of ansor and graph-level optimization***, i.e., the end-to-end optimization for the whole network graph.
 
-### *2021.4.22 & 4.24 & 4.25 & 4.26 & 4.27 & 4.28 & 4.29 & 4.30*
+### *2021.4.22 & 4.24 & 4.25 & 4.26 & 4.29 & 4.30*
 * ***auto-schedule user-defined operator tracing***:
     * **workload_registry.py**: Workload registration and serialization.
         * WORKLOAD_FUNC_REGISTRY = {} -> Global workload function and hash key registry; 1). user registerd task via decorator **register_workload**. 2). extract tasks from relay program via function **register_workload_tensors**. **register_workload** will register the function_name & func_pointer to the WORKLOAD_FUNC_REGISTRY.
@@ -396,7 +396,52 @@
             * Sort the heap, add state to best_states and ret. 
         * **PickStatesWithEpsGreedy**: for simply, when inputs < num_good(since will have some random states, **eps_greedy** param), pick best_states first, otherwise pick the random_states first. Then add the picked states(candidates) in **measured_states_set_** and **measured_states_vector_** for next round search won't re-pick again.
     * loop_state.h/loop_state.cc
-        * TODO 
+        * **StageNode** class: lightweight state in tvm/te/schedule, the members are listed as follows: 
+            ```c++
+            class StageNode : public Object {
+            public:
+            /*! \brief The operator of this stage */
+            te::Operation op;
+            /*! \brief The iterators in this stage. */
+            Array<Iterator> iters;
+            /*! \brief The type of this stage. */
+            StageKind op_type;
+            /*! \brief The compute location of this stage. */
+            ComputeAtKind compute_at;
+            /*! \brief Other stage-level attributes. */
+            StageAttributes attrs;
+            ```
+        * **StageKey** -> int, i.e., stage_id to represent the stage;
+        * **IterKey** -> pair\<int, int\>, i.e., stage_id & iter_id to represent a iterator;
+        * **AttachMapNode**: stores the compute_at relation between stages
+            ```c++
+            /*! \brief A Map to store the mapping of stage to its attached iterator. */
+            std::unordered_map<StageKey, IterKey> stage_to_attach_iter;
+            /*! \brief A Map to store the mapping of iterator to the stages attached to it. */
+            std::unordered_map<IterKey, std::vector<StageKey>, IterKeyHash> iter_to_attached_stages;
+            ``` 
+        * **StateNode** ---> the state in search process, consists of current loop structure and list of transformation steps, each state corresponds to a specific schedule for its ComputeDAG. The state similar to the schedule in tvm::te::Schedule.
+            ```c++
+            class StateNode : public Object {
+            public:
+            /*! \brief Current stages and loop structures. */
+            Array<Stage> stages;
+            /*! \brief History transformation steps. */
+            Array<Step> transform_steps;
+            /*!
+            * \brief The attach relations of stages and iterators. This is used to track the compute at operation.
+            */
+            AttachMap attach_map;
+            /*! \brief The up-to-date ComputeDAG of this state.
+            * (e.g., CacheReadStep/CacheWriteStep) can modify the ComputeDAG.
+            */
+            Optional<ObjectRef> current_compute_dag;
+            /*!
+            * \brief Indicate whether this state has unfilled tile sizes. Only concrete state can be apply to TVM schedule.
+            */
+            bool concrete;
+            ``` 
+        * **State** ref support schedule primitives: bind, parallel, unroll, vectorize, fuse, pragma, reorder, split, storage_align. new two: follow_split, follow_fused_split, these two use split factors from previous steps; compute_at, compute_inline, compute_root; cache_read, cache_write, rfactor. Use stage_id to get the stage to be applied on.
     * transform_step.h/transform_step.cc
         * TODO 
     * sketch_policy_rules.h/sketch_policy_rules.cc  
