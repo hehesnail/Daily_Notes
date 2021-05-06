@@ -284,7 +284,7 @@
         * ***Short usage of the special instructions(tensorcore, arm).***, this may due to the weakness of the current tensorization way to utilize the special instruction ? 
         * ***Combination of ansor and graph-level optimization***, i.e., the end-to-end optimization for the whole network graph.
 
-### *2021.4.22 & 4.24 & 4.25 & 4.26 & 4.30 & 5.1 & 5.2 & 5.3*
+### *2021.4.22 & 4.24 & 4.25 & 4.26 & 4.30 & 5.6 & 5.7*
 * ***auto-schedule user-defined operator tracing***:
     * **workload_registry.py**: Workload registration and serialization.
         * WORKLOAD_FUNC_REGISTRY = {} -> Global workload function and hash key registry; 1). user registerd task via decorator **register_workload**. 2). extract tasks from relay program via function **register_workload_tensors**. **register_workload** will register the function_name & func_pointer to the WORKLOAD_FUNC_REGISTRY.
@@ -301,11 +301,10 @@
     * **search_task.h/search_task.cc**
         * In search_task.h, define the class HardwareParams, HardwareParamsNode, SearchTask, SearchTaskNode. just same members consistent with python side.
         * search_task.cc, just constructor method and register the method. The **GetDefaultHardwareParams** decrible the how to set default params in different targets.
-    * **compute_dag.h/compute_dag.cc**
+    * **compute_dag.h/compute_dag.cc(basic)**
         * Members of ComputeDAGNode: Array<te::Tensor> tensors(only input/output); Array<te::Operation> ops(all ops in the schedule); double flop_ct; State init_state; AccessAnalyzer access_analyzer(do the static analysis);
         * Brief overview the ComputeDAGNode, can find the auto-schedule do lots of analysis on the compute_dag.
         * Create object: from in/out tensors, topo order -> te.create_schedule. from sch, obtain placeholders and the stage op marked as the output.
-        * (TO FILL) -> placeholder
     * **auto_schedule.h/auto_schedule.cc**
         * **TuningOptionsNode** definition, and the interface for python to call the AutoSchedule.
         * The AutoSchedule function create the **ProgramMeasurer** based on the tuning_options. Then call **SearchPolicy** search method with tunining options and created measurer. If the loop_state ret is valid, apply the transform_steps of the loop_state and ret the te::Schedule. The input SearchPolicy is created in python side via the SketchPolicy.
@@ -459,25 +458,24 @@
         * **State** ref support schedule primitives: bind, parallel, unroll, vectorize, fuse, pragma, reorder, split, storage_align. new two: follow_split, follow_fused_split, these two use split factors from previous steps; compute_at, compute_inline, compute_root; cache_read, cache_write, rfactor. Use stage_id to get the stage to be applied on.
         * **State** construct from the **Ops(tvm::te::Operation)**, the **stages** added to the StateNode is auto_schedule defined **Stage**.
         * The impl of the schedule primitives for the State:
-            * General Process: (TODO) 
+            * **General Process**: most primitives share the same impl.
+                * 1). get the Stage via stage_id and the related iter ids
+                * 2). CopyOnWrite to add the step in transform_steps
+                * 3). call the step->ApplyToState(this) to change the related stage in the State
             * **bind, parallel, unroll, vectorize** almost same impl ---> **AnnotationStep**
-                * 1). get the Stage via stage_id
-                * 2). AnnotationStep with the right annotation_type
-                * 3). CopyOnWrite to add the step in transform_steps 
-                * 4). call the step->ApplyToState(this) to change the related stage in the State. For AnnotationStep, change the Iterator annotation.
-            * **fuse**: -> FuseStep
-            * **pragam**: -> PragmaStep
-            * **reorder**: -> ReorderStep
-            * **split**: -> SplitStep
-            * **follow_split**: -> FollowSplitStep
-            * **follow_fused_split**: -> FollowFusedSplitStep
-            * **storage_align**: -> StorageAlignStep
-            * **compute_at**: -> ComputeAtStep
-            * **compute_inline**: -> ComputeInlineStep
-            * **compute_root**: -> ComputeRootStep
-            * **cache_read**: -> CacheReadStep
-            * **cache_write**: -> CacheWriteStep
-            * **rfactor**: -> RfactorStep
+                * AnnotationStep with the right annotation_type
+                * For 3). AnnotationStep change the Iterator annotation.
+            * **fuse**: In ApplyToState, the FuseStep fuse the iter extents and add the new_iter to the stage, also update the attach_map since iters change.
+            * **pragam**: currently only support the debug_skip_region and auto_unroll_max_step, simly use CopyOnWrite of stage and change the attrs.
+            * **reorder**: change the order of Iterator, update the state stages.
+            * **split**: split the iterator of the stage via iter_id and stage_id. iteratively calculate the range and add the new iterators. change the previous stage iters and update the attach_map.
+            * **follow_split&follow_fused_split**: call ExtractSplitLengths to get the previous split params, and the do split.
+            * **storage_align**: set the storage_align attr of the stage.
+            * **compute_at**: remove bound info of the stage via change iterator bound to Range(). change the stage to **kIter** in state stages. update the attach map.
+            * **compute_inline**: change the stage to **kInlined** in state stages.
+            * **compute_root**: compare with compute_at, difference is change the stage to **kRoot**.
+            * **cache_read&cache_write**: call the **ReplayAndGetDAG** of compute_dag to get the updated compute_dag. update the stages of stage via inserting the new stage(cache_read/cache_write). update the attach_map and the current_compute_dag of the state.
     * sketch_policy_rules.h/sketch_policy_rules.cc  
         * TODO 
-    * TODO ---> as, Downcast, copy_on_write, operator->(), GetRef等
+    * compute_dag.cc -> analysis on the compute_dag
+        * TODO 
