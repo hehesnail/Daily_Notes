@@ -284,7 +284,7 @@
         * ***Short usage of the special instructions(tensorcore, arm).***, this may due to the weakness of the current tensorization way to utilize the special instruction ? 
         * ***Combination of ansor and graph-level optimization***, i.e., the end-to-end optimization for the whole network graph.
 
-### *2021.4.22 & 4.24 & 4.25 & 4.26 & 4.30 & 5.6 & 5.7*
+### *2021.4.22->26 & 4.30 & 5.6 & 5.9 -> 5.15*
 * ***auto-schedule user-defined operator tracing***:
     * **workload_registry.py**: Workload registration and serialization.
         * WORKLOAD_FUNC_REGISTRY = {} -> Global workload function and hash key registry; 1). user registerd task via decorator **register_workload**. 2). extract tasks from relay program via function **register_workload_tensors**. **register_workload** will register the function_name & func_pointer to the WORKLOAD_FUNC_REGISTRY.
@@ -476,6 +476,18 @@
             * **compute_root**: compare with compute_at, difference is change the stage to **kRoot**.
             * **cache_read&cache_write**: call the **ReplayAndGetDAG** of compute_dag to get the updated compute_dag. update the stages of stage via inserting the new stage(cache_read/cache_write). update the attach_map and the current_compute_dag of the state.
     * sketch_policy_rules.h/sketch_policy_rules.cc  
-        * TODO 
+        * **SketchGenerationRule**: enum class ConditionKind, MeetCondition, Apply, GetRuleName.
+        * **RuleSkipStage**: MeetCondition always ret the kApply. Apply decreases the stage_id and ret.
+        * **RuleAlwaysInline**: 
+        * **RuleMultiLevelTiling**
+        * **RuleMultiLevelTilingWithFusion**
+        * **RuleAddCacheRead**
+        * **RuleAddCacheWrite**
+        * **RuleAddRfactor**
+        * **RuleSimplifyComputeWithConstTensor**
+        * **RuleCrossThreadReduction**
+        * **RuleSpecialComputeLocationGPU**
     * compute_dag.cc -> analysis on the compute_dag
+        * TODO 
+    * program measure
         * TODO 
