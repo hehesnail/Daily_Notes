@@ -1,4 +1,4 @@
-# Boring LLVM Code
+# LLVM Notes
 
 ### *2020.11.30*
 * Write self-defined add LLVM IR generator

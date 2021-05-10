@@ -1,5 +1,4 @@
-# Boring MLIR Code
-## Notes for learning mlir
+# MLIR Notes
 ### *2021.3.19*
 * What is MLIR?
 * 1). MLIR is a toolbox for building and integrating compiler abstractions. You are able to define your own set of operations

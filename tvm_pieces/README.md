@@ -1,4 +1,4 @@
-# Boring TVM Code
+# TVM Notes
 
 ### *2020.11.17*
 * use *parallel*, *vectorize* to create schedule which accelerate the execution time of operator.
