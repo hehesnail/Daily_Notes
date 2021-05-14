@@ -1,6 +1,6 @@
-# Pytorch Notes 
 
-### *2021.5.10 & 5.11 & 5.12 & 5.13*
+# Pytorch Notes
+## Overview the pytorch
 * [Quickstart to pytorch internals](http://blog.ezyang.com/2019/05/pytorch-internals/)
 ## Tensor
 * Tensor/TensorImpl --- Storage/StorageImpl
@@ -114,7 +114,7 @@
                 * **phase 3** -> Run differentiable optimizations (i.e. simple graph rewrites that we can still execute using autograd): EliminateDeadCode / EliminateCommonSubexpression / PeepholeOptimize / ConstantPropagation / ConstantPooling / UnrollLoops / RemoveListMutation / PeepholeOptimize / ConstantPropagation / EliminateCommonSubexpression / CheckInplace.
                 * **phase 4 & phase 5** -> slice out symbolically differentiable subgraphs & apply non-differentiable optims to the graphs.
                 * **need_gradient**: CreateAutodiffSubgraphs / differentiate / PropagateInputShapes / runOptimization / runNondiffOptimization / packGradient / InlineAutodiffSubgraphs.
-                * **no need_gradient**: runNondiffOptimization -> DecomposeOps / LowerSimpleTuples / BatchMM / FuseGraph / 
+                * **no need_gradient**: runNondiffOptimization -> DecomposeOps / LowerSimpleTuples / BatchMM / FuseGraph /
               * ret created ExecutionPlan via opt_graph & func_name.
               *  ExcutionPlan member **Code & CodeImpl**: constructor of CodeImpl call run method -> (emitCodeForBlock -> insertInstruction -> insertBailoutBlocks), thus here to emit instructions for Interpreter runtime.
               *  Check the instruction.h for OpCode defs. 
@@ -135,26 +135,26 @@
   * Two ways construct the AST: 
     * 1). Python side, StmtBuilder & ExprBuilder, 递归地将 Python code转换为 AST， 依据 python ast分析.
     * 2). CXX side, 对于传入的 soure code(python) 调用 Lexer 及 Parser 创建 JIT AST.
-* **Graph IR**: Graph & Node & Value & Block, defs in ir.h/ir.cpp
+* **IR Graph**: Graph & Node & Value & Block, defs in ir.h/ir.cpp
   * Graph: 表示 one "function" of computation, 其由Node串联组成.
   * Node: IR Graph 基础类， 表示计算 以及其依赖的 Values, 其可包含多个Blocks（用来定义 nested control flow, For/If）. 注意 Graph 的连接关系是通过 Node 串联起来，Graph 中插入新节点，实际作用在 Node为元素的双向链表(拓扑排序)上，可通过 next/prev获取 Node.
   * Value: 用以表示 node 的输入输出， type: Tensor or opaque Handle object.
   * Block: List of Nodes, with inputs/outputs.
-  * 结合后面 AST to IR 来看， Graph IR 更类似于提供了 AST Node 中对应到的图中编排方式(重新组织)，分析AST时以拓扑排序组织，以 prim::xxx, aten::xxx 为粒度. 以图的方式组织，结合 Node多为 Operator的性质，因此可做基于图层级的优化, bmm, fused_op etc. 同时，因其会ConvertToSSA，从而基于此做更多 static compiler optimization.  
+  * 结合后面 AST to IR 来看， IR Graph 更类似于提供了 AST Node 中对应到的图中编排方式(重新组织)，分析AST时以拓扑排序组织，以 prim::xxx, aten::xxx 为粒度. 以图的方式组织，结合 Node多为 Operator的性质，因此可做基于图层级的优化, bmm, fused_op etc. 同时，因其会ConvertToSSA，从而基于此做更多 static compiler optimization.  
 * **JIT AST to IR**: mainly **to_ir** in ir_emitter.cpp
   * **Flow**: emitDef -> ConvertToSSA -> CanonicalizeModifiedLoops -> NormalizeOps -> runCleanupPasses.
-  * **emitDef**: AST Root Def class, 主要还是根据 AST IR 的定义递归处理， IR转换过程也挺类似 Codegen的. 
+  * **emitDef**: AST Root Def class, 主要还是根据 AST IR 的定义递归处理， IR转换过程也挺类似 Codegen的.
     * **emitStatements**: 根据 stmt.kind, call 对应的 emitXXX func, emit stmt 一般会在 graph中添加对应的Node(topological order). e.g.: emitIf -> 先 emitCondExpr, 后 emitIfElseBlocks, graph中添加对应 Node(prim::If), Node add two blocks(true_block, false_block). For true & false, emitSingleIfBranch -> emitStatements again.
     * **emitExpr**: emitSugaredExpr, based tree kind, call emitSugaredExpr, emitApplyExpr, emitSubscript, emitSimpleExpr. 对于 Expr而言，其 ret 为 Value*.
   * 总体而言是根据 AST Node定义，递归处理，而在此每个Node对应的处理中， stmt会在 graph中添加对应的Node(以kind区分)，expr则作为stmt的输入输出，被预先处理.
 * **Passes** & **JIT Executor**: 参考上述 _jit_script_compile 过程中简要描述.
-* **TensorExpr(nnc)**: 
+* **TensorExpr(NNC)**:
   * NNC stands for Neural Net Compiler. It is a component of TorchScript JIT and it performs on-the-fly code generation for kernels, which are often a combination of multiple aten (torch) operators.
   * jit interpreter automatically extracts subgraphs which or which specialized code can be JIT generated. combined kernerls avoid memory access to improve performance, i.e., fuser pass. thus can apply NNC code generation.
   * TE: borrow from halide and TVM.
-  * 从注释说明来看，处于快速开发期.
+  * 从注释说明来看，处于快速开发期. 从 runNondiffOptimization 中包含Pass中可以看到 FuseTensorExprs pass, 其功能主要在于将Node类型为 prim::TensorExprGroup 的 Operator fuse. 从这个应用看，其定位处于 OP 层面，而prim::TensorExprGroup 在RegisterOperators时传入 createTensorExprOp，其会在 JIT Interpreter运行时调用 getOperation方法 compile TensorExprOp.
 ## TorchScirpt Conclusion:
-* **Python Support (表示能力)**: torchscript subset of python, 详细参考 [jit_lang_ref](https://pytorch.org/docs/stable/jit_language_reference.html#language-reference), [jit_builtin_funcs](https://pytorch.org/docs/stable/jit_builtin_functions.html#builtin-functions), [python_lang_cover](https://pytorch.org/docs/stable/jit_python_reference.html#python-language-reference), [jit_unsupported_pytorch_constructs](https://pytorch.org/docs/stable/jit_unsupported.html#torch-and-tensor-unsupported-attributes).
+* **Python Support (表示能力)**: torchscript subset of python, 语法支持参考: [jit_lang_ref](https://pytorch.org/docs/stable/jit_language_reference.html#language-reference), [jit_builtin_funcs](https://pytorch.org/docs/stable/jit_builtin_functions.html#builtin-functions), [python_lang_cover](https://pytorch.org/docs/stable/jit_python_reference.html#python-language-reference), [jit_unsupported_pytorch_constructs](https://pytorch.org/docs/stable/jit_unsupported.html#torch-and-tensor-unsupported-attributes).
   * Types: TorchScript only supports a small set of types that are needed to express neural net models, each variable should have a single static type.
   * Supported Types: Tensor, Tuple, bool, int, float, str, List[T], Optional[T], Dict[K, V], T(torchscript class), E(torchscript enum), NamedTuple[T0, T1, ...].
   * Expressions:
@@ -178,17 +178,48 @@
   * Use of python values: python values are not a first class part of TorchScript. Instead they are de-sugared at compile-time into the primitive types that TorchScript supports. Ref to **emitSugaredExpr** in ir_emitter.cpp.
   * **Comments**: 按照doc描述，其目的在于支持的 python语法为和描述神经网络相关的语法，亦可看成同 nn.Module强相关的python语法，从 torchscript.jit.script 直接作用于 nn.Module -> ScriptModule, function -> ScriptFunction主要为 nn.Module服务。但从目前支持的语法来看，其已具有相当高的灵活性，逻辑跳转，循环，List，Dict，Tuple等均支持。支持如此多的 python语法 以及 已有pytorch特性，建立在：
     * 1). 综合需支持语法，专为 JIT 设计的 Lexer, Parser, CFG, AST;
-    * 2). 设计Graph IR 用以组织AST的节点，且该Graph IR 易于 1). apply optim passes, 2). convert to interpreter instruction.
-    * 3). 综合Graph IR 及 图中节点已有的 Kind, 设计的 GraphExecutor -> 其包含优化 Passes 以及 Interpreter，而 Interpreter 中设计了对应的 Instruction 以及 不同OpCode的对应行为;
-    * 4). Python -> JIT AST -> Graph IR -> Optim Passes -> Interpreter Instruction -> Interpreter Exec; 针对上述不同层级的路径，所支持的其间的转换以及类型匹配。
-    * 5). pytorch原生强大的operator库(ATen), 因此相当多的对于 tensor的操作可通过 call operator 的方式调用 ATen 中对应的 operator(cpu, gpu)。 无论从 pass 还是 解释器的角度, 可以不用过细粒度的分析，如 +,-,*/,等不用设计对应的 OpCode, just operator call.
-    * 6). JIT 优化不用 lowered 到更底层的 target device 的 IR 描述，比如从 GraphIR 层级 lowered 到 LLVM IR.
-* DSL：
-  * python语法：可行性, 工作量, JIT AST 绑定
-  * Graph IR 层级: 可行性，工作量，同当前 Op 设计冲突性， 相当于 TIR 前置层
-  * Passes: 基于 Graph IR
-  * JIT Exectcutor: JIT Graph Executor 支持, VM实现工作量
-  * torchscript & jit 同 pytorch 整体框架的高绑定性
-  * inter_op parallelism: 算子间并行
-  * C++ vs C 可行性
+    * 2). 设计IR Graph 用以组织AST的节点，且该Graph IR 易于 1). apply optim passes, 2). convert to interpreter instruction.
+    * 3). 综合IR Graph 及 图中节点已有的 Kind, 设计的 GraphExecutor -> 其包含优化 Passes 以及 Interpreter，而 Interpreter 中设计了对应的 Instruction 以及 不同OpCode的对应行为;
+    * 4). Python -> JIT AST -> IR Graph -> Optim Passes -> Interpreter Instruction -> Interpreter Exec; 针对上述不同层级的路径，所支持的其间的转换以及类型匹配。
+      * 以 List 为例, 其在 python 阶段 call build_List 创建 ListLiteral Object，其对应 JIT AST 中 ListLiteral(tree_views.h), TK_LIST_LITERAL(kind);
+      * 转换为IR Graph时, emitSimpleExpr 中依据 TK_LIST_LITERAL类型处理调用 createList 在 graph 中添加 prim::ListConstruct 的 Node;
+      * Interpreter 生成对应指令时调用 emitNode, 依据 prim::ListConstruct call emitContainerConstruct, 此时 OpCode 为 LIST_CONSTRUCT;
+      * Interpreter 执行时根据 LIST_CONSTRUCT OpCode, call listConstruct, 其会生成 c10::List 实例化对象 并 push 入栈中. (注：List 和 Stack 中元素类型为 IValue, 类型无关)
+    * 5). pytorch原生强大的operator库(ATen), 因此相当多的对于 tensor的操作可通过 call operator 的方式调用 ATen 中对应的 operator(cpu, gpu)。 无论从 pass 还是 解释器的角度, 可以通过比较粗粒度方式的处理，如 +,-,*/,等不用设计对应的 OpCode, just operator call.
+    * 6). JIT 优化不用 lowered 到更底层的 target device 的 IR 描述，比如从 GraphIR 层级 lowered 到 LLVM IR，某种程度上降低了分析 Op 内部的复杂性.
+* **What about DSL?**：
+  * Python Frontend &  JIT AST：
+    * 其python 前端关于 python 代码转换到 JIT AST的过程中主要借助 AST 分析，以及构建对应 CXX端实体。同时单纯复用其为支持 python 语法设计的 AST相对容易。
+  * IR 引入(JIT AST & IR Graph):
+    * TorchScirpt 以针对 nn.Module 为核心，以pytorch原生存在的 operator为基础，设计其需要支持的 python语法。
+      * 因 tensor 在 opearator之间传递，故在 torchscript端 Tensor 主要作为 Value传递给 Graph 中的 Node，其内存管理可通过 Tensor/TensorImpl, Stoarge/StorageImpl实现。
+      * IR 抽象程度以 ATen::op + Prim::op(支持灵活的Python控制流) 为基础，并且通过 Graph形式重新组织。一个关键点在于其 ATen 中 operator粒度可大可小(add -> conv)，因此其 JIT AST 中 Node易于找到对应的operator实体。
+    * DSL 基于 TVM IR，torchscript 中对应为其 tensorexpr(nnc). DSL 以 TVM Op 为核心，通过Op串联的最终转换为 TIR 层级。而 TVM OP概念更加粗比如 conv，一般很少会对add专门写一个op。
+      * Op间产生Tensor的内存管理需要 TVM 在 TIR Pass(postproc, flatten, rewrite等) 中进行处理，Tensor->Buffer->Allocate。
+      * TIR 相当为单个Op的计算的描述。
+    * TIR 支持 List等 (直接扩展 TIR 能力，JIT AST & TIR融合)
+      * 若 List 等在 TIR层级，需在目前 TIR 文法中增加其对应的行为，与其他Expr，Stmt交互的行为，可以参考AST中关于ListLiteral 在CFG中定义.
+      * Missing pieces: 数据管理，TIR无法类似于 torchscript借助 pytorch原有 Tensor内存管理，故针对List等扩展重新处理
+      * Pass & Codegen支持：若针对已有 TIR 进行扩展，势必影响到 lower pass 以及 Codegen，Codegen中如何增加 List 等抽象层级较高结构的支持。同时其也不想 JIT 解释器，可以通过直接创建对等的 List对象压栈即可。
+      * 与TIR耦合度高，对原有 TVM 影响较大，TVM升级可能带来的影响更大。同时，TIR/Pass/Codegen三个层面上的变动工作量相当大。
+    * TIR 层级前引入类似于 JIT AST结构，以及 IR Graph
+      * Op 处于 AST/IR Graph 中何种级别？ ---> 初步想法: ComputeOp 可对应到 IR Graph中的 Node，其在 AST 也应为 Apply Expr, graph::insertFunctionCall。同时对 ComputeOp进行分析，若其均处于mainfunc 层级，则创建对应 Schedule Stage；若其处于If，For Block中，则将其可单独 lower 此Op到TIR，并最终同 Graph 中已有语句完成拼接。
+      * If / While等处于Op，还是AST中Node？ ---> 初步想法：If / While等语句描述个人觉得处于 AST Node中更为合适，这也是为了将 控制流 和 Op 完成解耦，从而将其从 ExternOp的限制中剥离出来。支持如下描述：
+        ```
+        if (xxx):
+          a = op_call_1(xxx...)
+        else:
+          a = op_call_2(xxx...)
+        ```
+        而If / While 仍处于 ExternOp中， 因 ExternOp 同 ComputeOp在 TVM 中处于同级关系，在 if 中支持灵活的调用 compute_op 等在于将 op 中 TIR生成需前置。
+      * 类Graph形式组织起Op？ ---> 因 Graph 中 Node的丰富性，其将Op 从 TVM的 Op( Compute /Extern /Hybrid)中脱离出来，可为cuda kernel, cpu kernel, 更广义来看是否可为同为计算图中的节点。 此种组织方式可能更方便接入外部第三方组件。
+      * AST -> Graph -> Schedule -> TIR 转换？
+        * AST -> Graph： 分析并沿用 torchscript 中实现，该部分可复用性应该较高。
+        * Graph -> Paratial Schedule,：
+          * 若 If/For等作为图中Node，实际上 DSL 以前方式 中Op/Func调用同If/For等处于同一层级(Graph Node)。此时若 If/For 中存在 Op/Func Call，则其实可 lower Op中 TIR，同剩余 TIR 进行拼接，即此时无schedule概念。
+          * 若Op/Func Call仅存在于主函数中，其可看作原有 DSL模式，探索是否通过 Graph Node中以Node kind为区分，生成对应 ExternOp 以及 ComputeOp的串接，从而获得 te::Schedule.
+        * Paratial Schedule -> TIR：若上步转换完成较好，则此步复用 TVM 原有模式可能性较大。
+    * 意义：TIR 借鉴 JIT AST/IR Graph的实现，在于从另一个视角去看代码的组织形式，亦即 通过Graph 中 Node组织，而Node可为 If/For/While等，也可为Builtin Fun call, Operator Call。Graph 的 Node按拓扑排序，保持程序的顺序性。
+    * 综上，若想引入 torchscript 灵活的新特性，需对torchscript AST, IR 以及 已有 TIR进行深入分析，重新设计后才可抽离出适配于 DSL 的特性。同时牵扯范围相当大，从 Frontend -> MultiIRs -> Passes -> CodeGen均有涉及，工作量非常庞大。
+
 
