@@ -284,7 +284,7 @@
         * ***Short usage of the special instructions(tensorcore, arm).***, this may due to the weakness of the current tensorization way to utilize the special instruction ? 
         * ***Combination of ansor and graph-level optimization***, i.e., the end-to-end optimization for the whole network graph.
 
-### *2021.4.22->26 & 4.30 & 5.6 & 5.9 -> 5.15*
+### *2021.4.22->26 & 4.30 & 5.6 & 5.9 & 5.19*
 * ***auto-schedule user-defined operator tracing***:
     * **workload_registry.py**: Workload registration and serialization.
         * WORKLOAD_FUNC_REGISTRY = {} -> Global workload function and hash key registry; 1). user registerd task via decorator **register_workload**. 2). extract tasks from relay program via function **register_workload_tensors**. **register_workload** will register the function_name & func_pointer to the WORKLOAD_FUNC_REGISTRY.
@@ -477,16 +477,30 @@
             * **cache_read&cache_write**: call the **ReplayAndGetDAG** of compute_dag to get the updated compute_dag. update the stages of stage via inserting the new stage(cache_read/cache_write). update the attach_map and the current_compute_dag of the state.
     * sketch_policy_rules.h/sketch_policy_rules.cc  
         * **SketchGenerationRule**: enum class ConditionKind, MeetCondition, Apply, GetRuleName.
-        * **RuleSkipStage**: MeetCondition always ret the kApply. Apply decreases the stage_id and ret.
+        * **RuleSkipStage**: 
+          * **MeetCondition** always ret the kApply. 
+          * **Apply** decreases the stage_id and ret.
         * **RuleAlwaysInline**: 
-        * **RuleMultiLevelTiling**
-        * **RuleMultiLevelTilingWithFusion**
-        * **RuleAddCacheRead**
-        * **RuleAddCacheWrite**
-        * **RuleAddRfactor**
-        * **RuleSimplifyComputeWithConstTensor**
-        * **RuleCrossThreadReduction**
-        * **RuleSpecialComputeLocationGPU**
+          * **MeetCondtion** ret kApplyAndSkipRest if cond statisfied, else kSkip. call ShouldAlwaysBeInlined(placeholder, output, has_reduction -> false, then if gpu_task -> true, if cpu_task, IsStrictlyInlineable from compute_dag analysis). 
+          * **Apply** can state compute_inline on stage_id, decreases the stage_id and ret.
+        * **RuleMultiLevelTiling**: 
+          * **MeetCondtion** ret kApplyAndSkipRest if cond statisfied, else kSkip. call **NeedMultiLevelTiling**, the cond is determined by compute_dag analysis. 
+          * **Apply**: gpu_task, tile structure: SSSRRSRS, cpu_task, tile structure: SSRSRS. call **DoMultiLevelTiling**, based on IteratorKind and tile structure, split the iterator and add to space_level and reduce_level, finaly combine space_level and reduce_level and reorder. decreases the stage_id and ret.
+        * **RuleMultiLevelTilingWithFusion**:
+          * **MeetCondition**: call **NeedMultiLevelTiling** && **HasSingleElementwiseMathcedConsumer**, then for gpu_task, or for cache_write stage -> always fusion, ret kApplyAndSkipRest, else, ret kApply. for else case, kSkip.
+          * **Apply**: for stage_id, DoMultiLevelTiling, the for the target stage_id, tile target_stage, finally call the compute_at to fuse current stage and the consumer stage.
+        * **RuleAddCacheRead**;
+          * **MeetCondition**: four rules: 1). Don't cache_read a stage if it has multiple consumers; 2). Don't cache_read a stage if its consumer does not need multi-level tiling; 3). Don't cache_read a stage if its consumer does cross-thread reduction; Only direct producers can be cache read; ret kSkip or kApplyAndSkipRest(if cond meets).
+          * **Apply**: add cache_read stage, and compute_at cache_read stage to the target_stage(consumer). ret state, stage_id not changes, since add one new stage. 
+        * **RuleAddCacheWrite**:
+          * **MeetCondition**: Add cache write if a stage needs multi-level tiling, but does not have a element-wise matched consumer, i.e., not conflict with RuleMultiLevelTilingWithFusion. then for gpu_task, kApplyAndSkipRest, cpu_task, just kApply. 
+          * **Apply**:  call cache_write via state, memory attr: local. ret state, stage_id not changes, since add one new stage. 
+        * **RuleAddRfactor**: simply skip.
+        * **RuleSimplifyComputeWithConstTensor**: 
+          * **MeetCondition**: need to set the attrs in te.compute for the stage. ret kApplyAndSkipRest or kSkip.
+          * **Apply**: get unrolled_inner_iters with configed names, unroll indices of const tensors, then tile the space indices, reorder the iters, and ret stage while decreases the stage_id.
+        * **RuleCrossThreadReduction**: simply skip.
+        * **RuleSpecialComputeLocationGPU**: simply skip now.
     * compute_dag.cc -> analysis on the compute_dag
         * TODO 
     * program measure
