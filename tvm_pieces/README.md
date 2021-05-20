@@ -501,7 +501,25 @@
           * **Apply**: get unrolled_inner_iters with configed names, unroll indices of const tensors, then tile the space indices, reorder the iters, and ret stage while decreases the stage_id.
         * **RuleCrossThreadReduction**: simply skip.
         * **RuleSpecialComputeLocationGPU**: simply skip now.
-    * compute_dag.cc -> analysis on the compute_dag
-        * TODO 
+    * compute_dag.h/compute_dag.cc 
+        * AccessAnalyzer -> the static analyzer for a ComputeDAG.
+        * data members aka analysis infos:
+          * OperationMap -> unordered_map\<te::Operation, T, ObjectPtrHash, ObjectPtrEqual\>
+          * OperationMap **read_from** -> (Operation, (Operation, vector<vector<PrimExpr\>\>)), an operation to all operations it reads from, for each operation pair, use a two-dimensional array for multiple multi-dimensional accesses. the inner vector represents the indices of multi-dimensional access.
+          * OperationMap **read_by** -> (Operation, (Operation, vector<vector<PrimExpr\>\>)), an operation to all operations it is read by.
+          * OperationMap **num_common_outer_iterators** -> (Operation, (Operation, int)), store the number of common outer iterators for operation pairs that have read-write relations.
+          * OperationMap **is_simple_acess** -> (Operation, bool)
+          * OperationMap **is_strictly_inlineable** -> (Operation, bool)
+          * OperationMap **needs_multi_level_tiling** -> (Operation, bool)
+          * OperationMap **is_output** -> (Operation, bool)
+          * Array<te::Operation> ops_topo_order -> topological order of operations.
+        * provide for policys:
+          * IsSimpleAccess, IsStrictlyInline, NeedsMultiLevelTiling, IsOutput, GetConsumers, GetProducers, GetDirectProducers, GetNumCommonOuterIterator, ElementWiseMatch.
+        * Create the AccessAnalyzer from tensors (output_tensors):
+          * 1). Topo sort the ops in graph, ops_topo_order ok.
+          * 2). build the read & write access map
+            * a). PlaceholderO, read_from is empty.
+            * b). For ComputeOp, **ReadAccessExtractor** extract the ComputeOp body.
+            * c). **ReadAccessExtractor**: data_mem: (Operation -> vector<vector<PrimExpr\>\>), for CallNode with builtin::if_then_else, SelectNode, IfThenElseNode(Stmt), has_branch -> true. If visit the ProducerLoadNode, add the PrimExpr indices to read_access map. 
     * program measure
         * TODO 
