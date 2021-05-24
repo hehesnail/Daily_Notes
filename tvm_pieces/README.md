@@ -284,7 +284,7 @@
         * ***Short usage of the special instructions(tensorcore, arm).***, this may due to the weakness of the current tensorization way to utilize the special instruction ? 
         * ***Combination of ansor and graph-level optimization***, i.e., the end-to-end optimization for the whole network graph.
 
-### *2021.4.22->26 & 4.30 & 5.6 & 5.9 & 5.19*
+### *2021.4.22->26 & 4.30 & 5.6 & 5.9 & 5.19 & 5.23*
 * ***auto-schedule user-defined operator tracing***:
     * **workload_registry.py**: Workload registration and serialization.
         * WORKLOAD_FUNC_REGISTRY = {} -> Global workload function and hash key registry; 1). user registerd task via decorator **register_workload**. 2). extract tasks from relay program via function **register_workload_tensors**. **register_workload** will register the function_name & func_pointer to the WORKLOAD_FUNC_REGISTRY.
@@ -508,7 +508,7 @@
           * OperationMap **read_from** -> (Operation, (Operation, vector<vector<PrimExpr\>\>)), an operation to all operations it reads from, for each operation pair, use a two-dimensional array for multiple multi-dimensional accesses. the inner vector represents the indices of multi-dimensional access.
           * OperationMap **read_by** -> (Operation, (Operation, vector<vector<PrimExpr\>\>)), an operation to all operations it is read by.
           * OperationMap **num_common_outer_iterators** -> (Operation, (Operation, int)), store the number of common outer iterators for operation pairs that have read-write relations.
-          * OperationMap **is_simple_acess** -> (Operation, bool)
+          * OperationMap **is_simple_access** -> (Operation, bool)
           * OperationMap **is_strictly_inlineable** -> (Operation, bool)
           * OperationMap **needs_multi_level_tiling** -> (Operation, bool)
           * OperationMap **is_output** -> (Operation, bool)
@@ -520,6 +520,13 @@
           * 2). build the read & write access map
             * a). PlaceholderO, read_from is empty.
             * b). For ComputeOp, **ReadAccessExtractor** extract the ComputeOp body.
-            * c). **ReadAccessExtractor**: data_mem: (Operation -> vector<vector<PrimExpr\>\>), for CallNode with builtin::if_then_else, SelectNode, IfThenElseNode(Stmt), has_branch -> true. If visit the ProducerLoadNode, add the PrimExpr indices to read_access map. 
+            * c). **ReadAccessExtractor**: data_mem: (Operation -> vector<vector<PrimExpr\>\>), for CallNode with builtin::if_then_else, SelectNode, IfThenElseNode(Stmt), has_branch -> true. If visit the ProducerLoadNode, add the PrimExpr indices to read_access map.
+            * d). For **read_by** map, all loads in read_access map are read_by the current op, thus [iter.first, op\] to fill the primexpr indices. 
+            * e). For **read_from** map, the read_access map is exactly the current op read_from, also set the op has_branch attr.
+          * 3). compute number of common outer iterators, based on read_from map, first shape should match, then axis itervar should ConstShiftEqual to access primexpr. the **num_common_outer_iterators** of node is set.
+          * 4). Do some static analysis on ComputeOps, is_simple_access, is_strictly_inlinable -> needs_multi_level_tiling.
+          * 5). **is_simple_access**: get the op read_from map, iterate the access_list, call IsSimpleAccess to check the access to an operation -> based on all index is just a variable with an optional constant shift. also set the axis_missing, axis_duplicated, same_order(indices and op axes). for **is_simple_access**, determined by the func ret. 
+          * 6). **is_strictly_inlineable**: is_simple_access && same_order && not axis_duplicated. also, if contain expensive op(currently only exp) and op has branch, set to false.
+          * 7). **needs_multi_level_tiling**: get the op read_from map, iterate the access_list, for access expr get the indices expr. For reduce_axis itervar, or reduce_axis itervar primexpr, n_missing_cnt++. If n_missing_cnt >=2 or n_missing_cnt>=1 & has_reduce_axis. Thus, the op has reduction comp, need to do multi_level_tiling optim.
     * program measure
         * TODO 
