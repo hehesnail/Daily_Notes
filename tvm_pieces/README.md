@@ -284,7 +284,7 @@
         * ***Short usage of the special instructions(tensorcore, arm).***, this may due to the weakness of the current tensorization way to utilize the special instruction ? 
         * ***Combination of ansor and graph-level optimization***, i.e., the end-to-end optimization for the whole network graph.
 
-### *2021.4.22->26 & 4.30 & 5.6 & 5.9 & 5.19 & 5.23*
+### *2021.4.22->26 & 4.30 & 5.6 & 5.9 & 5.19 & 5.23 & 5.24 & 5.26*
 * ***auto-schedule user-defined operator tracing***:
     * **workload_registry.py**: Workload registration and serialization.
         * WORKLOAD_FUNC_REGISTRY = {} -> Global workload function and hash key registry; 1). user registerd task via decorator **register_workload**. 2). extract tasks from relay program via function **register_workload_tensors**. **register_workload** will register the function_name & func_pointer to the WORKLOAD_FUNC_REGISTRY.
@@ -409,7 +409,7 @@
             * Continue search.
             * Sort the heap, add state to best_states and ret. 
         * **PickStatesWithEpsGreedy**: for simply, when inputs < num_good(since will have some random states, **eps_greedy** param), pick best_states first, otherwise pick the random_states first. Then add the picked states(candidates) in **measured_states_set_** and **measured_states_vector_** for next round search won't re-pick again.
-    * loop_state.h/loop_state.cc/transform_step.h/transform_step.cc
+    * **loop_state.h/loop_state.cc/transform_step.h/transform_step.cc**
         * **StageNode** class: lightweight state in tvm/te/schedule, the members are listed as follows: 
             ```c++
             class StageNode : public Object {
@@ -475,7 +475,7 @@
             * **compute_inline**: change the stage to **kInlined** in state stages.
             * **compute_root**: compare with compute_at, difference is change the stage to **kRoot**.
             * **cache_read&cache_write**: call the **ReplayAndGetDAG** of compute_dag to get the updated compute_dag. update the stages of stage via inserting the new stage(cache_read/cache_write). update the attach_map and the current_compute_dag of the state.
-    * sketch_policy_rules.h/sketch_policy_rules.cc  
+    * **sketch_policy_rules.h/sketch_policy_rules.cc**
         * **SketchGenerationRule**: enum class ConditionKind, MeetCondition, Apply, GetRuleName.
         * **RuleSkipStage**: 
           * **MeetCondition** always ret the kApply. 
@@ -501,7 +501,7 @@
           * **Apply**: get unrolled_inner_iters with configed names, unroll indices of const tensors, then tile the space indices, reorder the iters, and ret stage while decreases the stage_id.
         * **RuleCrossThreadReduction**: simply skip.
         * **RuleSpecialComputeLocationGPU**: simply skip now.
-    * compute_dag.h/compute_dag.cc 
+    * **compute_dag.h/compute_dag.cc**
         * AccessAnalyzer -> the static analyzer for a ComputeDAG.
         * data members aka analysis infos:
           * OperationMap -> unordered_map\<te::Operation, T, ObjectPtrHash, ObjectPtrEqual\>
@@ -528,5 +528,8 @@
           * 5). **is_simple_access**: get the op read_from map, iterate the access_list, call IsSimpleAccess to check the access to an operation -> based on all index is just a variable with an optional constant shift. also set the axis_missing, axis_duplicated, same_order(indices and op axes). for **is_simple_access**, determined by the func ret. 
           * 6). **is_strictly_inlineable**: is_simple_access && same_order && not axis_duplicated. also, if contain expensive op(currently only exp) and op has branch, set to false.
           * 7). **needs_multi_level_tiling**: get the op read_from map, iterate the access_list, for access expr get the indices expr. For reduce_axis itervar, or reduce_axis itervar primexpr, n_missing_cnt++. If n_missing_cnt >=2 or n_missing_cnt>=1 & has_reduce_axis. Thus, the op has reduction comp, need to do multi_level_tiling optim.
+        * **GetConsumers:** Find all inlined_ops first, recursively collect all ops from read_by map, skip the inlined ops and add to consumers, i.e., all consumers along the whole compute_dag. 
+        * **GetProducers & GetDirectProducers:** GetProducers work likes GetConsumers, but from the read_from map. GetDirectProducers just obtain the ops from read_from map, no recursive call. 
+        * **ElementWiseMatch:** For op and target_op, along from the compute_dag, i.e., from read_by map. 1). The read_by map of op must only contain one consumer op; 2). Also, thus two ops should have the same output size; 3). Finally, the read(op->vector<vector<PrimExpr\>\> indices) is elmentwise(IsSimpleAccess succeed)
     * program measure
         * TODO 
