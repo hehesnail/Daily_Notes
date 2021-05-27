@@ -284,7 +284,7 @@
         * ***Short usage of the special instructions(tensorcore, arm).***, this may due to the weakness of the current tensorization way to utilize the special instruction ? 
         * ***Combination of ansor and graph-level optimization***, i.e., the end-to-end optimization for the whole network graph.
 
-### *2021.4.22->26 & 4.30 & 5.6 & 5.9 & 5.19 & 5.23 & 5.24 & 5.26*
+### *2021.4.22->26 & 4.30 & 5.6 & 5.9 & 5.19 & 5.23 & 5.24 & 5.26/27*
 * ***auto-schedule user-defined operator tracing***:
     * **workload_registry.py**: Workload registration and serialization.
         * WORKLOAD_FUNC_REGISTRY = {} -> Global workload function and hash key registry; 1). user registerd task via decorator **register_workload**. 2). extract tasks from relay program via function **register_workload_tensors**. **register_workload** will register the function_name & func_pointer to the WORKLOAD_FUNC_REGISTRY.
@@ -531,5 +531,96 @@
         * **GetConsumers:** Find all inlined_ops first, recursively collect all ops from read_by map, skip the inlined ops and add to consumers, i.e., all consumers along the whole compute_dag. 
         * **GetProducers & GetDirectProducers:** GetProducers work likes GetConsumers, but from the read_from map. GetDirectProducers just obtain the ops from read_from map, no recursive call. 
         * **ElementWiseMatch:** For op and target_op, along from the compute_dag, i.e., from read_by map. 1). The read_by map of op must only contain one consumer op; 2). Also, thus two ops should have the same output size; 3). Finally, the read(op->vector<vector<PrimExpr\>\> indices) is elmentwise(IsSimpleAccess succeed)
-    * program measure
-        * TODO 
+    * **cost_model.h/cost_model.cc/cost_model.py/xgb_model.py**
+        * Base CostModelNode, the virtual methods: Update/Predict/PredictStages.
+            ```c++
+            class CostModelNode : public Object {
+            public:
+            virtual void Update(const Array<MeasureInput>& inputs, 
+                                const Array<MeasureResult>& results) = 0;
+            virtual void Predict(const SearchTask& task, 
+                                 const Array<State>& states,
+                                 std::vector<float>* scores) = 0;
+            virtual void PredictStages(const SearchTask& task, 
+                                      const Array<State>& states, 
+                                      std::vector<float>* state_scores,
+                                      std::vector<std::vector<float>>* stage_scores);
+            ```
+        * Two cost models, **RandomModel**, **PythonBasedModel**
+        * For RandomModel, inherits from CostModel
+            ```c++
+            class RandomModelNode : public CostModelNode {
+            public:
+            /*! \brief Pointer to a random number generator function */
+            const TypedPackedFunc<void(size_t, void*)>* random_number_func;
+            ...
+            }; 
+            ```
+            * The key thing here is the random_number_func(TypePackedFunc), this will be passed from python side.
+            * For override **Update** method, do nothing, since random model dose not need update params.
+            * For override **Predict** method, call the random_number_func, this func is random_fill_float in cost_mode.py, just ret np.random.uniform(0, 1, (size,)), uniform distribution.
+        * For PythonBasedModel, inherits from CostModel, currently support XGBModel(def in python side).
+            ```c++
+            class PythonBasedModelNode : public CostModelNode {
+            public:
+            /*! \brief Pointer to the update funcion in python */
+            PackedFunc update_func;
+            /*! \brief Pointer to the predict funcion in python */
+            PackedFunc predict_func;
+            /*! \brief Pointer to the predict funcion in python */
+            PackedFunc predict_stage_func;
+            };
+            ```
+        * 3 key things, update_func, predict_func, predict_stage_func, all PakcedFunc, thus call the python side corresponding func.
+        * For both **Update** and **Predict**, call the corresponding member function.
+        * Lets look at XGBModel defined in xgb_model.py and PythonBaseModel in python side.
+        * in __init\_\_,  call self.\_\_init_handle_by_constructor\_\_(_ffi_api.PythonBasedModel, update_func, predict_func, predict_stage_func), also the udpate_func and predict_func will can self.update, self.predict, i.e., defined in python side.
+        * In XGBModel, import the xgboost lib for train and predict.
+            ```python
+            global xgb
+            try:
+                if xgb is None:
+                    xgb = __import__("xgboost")
+            ``` 
+        * For **update**: call **get_per_store_features_from_measure_pairs** to extract features from inputs/results, this func call the cxx side. Then train xgboost model and save it. 
+            ```python
+            self.bst = xgb.train(
+                self.xgb_params,
+                dtrain,
+                num_boost_round=10000,
+                obj=pack_sum_square_error,
+                callbacks=[
+                    custom_callback(
+                        stopping_rounds=50,
+                        metric="tr-p-rmse",
+                        fevals=[
+                            pack_sum_rmse,
+                            pack_sum_average_peak_score(self.plan_size),
+                        ],
+                        evals=[(dtrain, "tr")],
+                        maximize=False,
+                        verbose_eval=self.verbose_eval,
+                    )
+                ],
+            )
+            ``` 
+        * For **predict**, same way to extract features, pre-process the features and call xgboost model, ret the predicted scores.
+            ```python
+            features = get_per_store_features_from_states(states, task)
+            if self.bst is not None and len(self.inputs) > self.num_warmup_sample:
+                dtest, pack_ids = feature_to_pack_sum_xgbmatrix(features)
+                raw_preds = self.bst.predict(dtest)
+                ret = predict_throughput_pack_sum(raw_preds, pack_ids)
+            else:
+                ret = np.random.uniform(0, 1, (len(states),))
+
+            # Predict -inf for invalid states that failed to be lowered.
+            for idx, feature in enumerate(features):
+                if feature.min() == feature.max() == 0:
+                    ret[idx] = float("-inf")
+
+            return ret
+            ```  
+        * Just skip the features packing, convert to xgbmatrix etc.
+    * **feature.h/feature.cc**
+        * TODO-END
