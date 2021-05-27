@@ -559,7 +559,7 @@
             * The key thing here is the random_number_func(TypePackedFunc), this will be passed from python side.
             * For override **Update** method, do nothing, since random model dose not need update params.
             * For override **Predict** method, call the random_number_func, this func is random_fill_float in cost_mode.py, just ret np.random.uniform(0, 1, (size,)), uniform distribution.
-        * For PythonBasedModel, inherits from CostModel, currently support XGBModel(def in python side).
+        * For **PythonBasedModel**, inherits from CostModel, currently support XGBModel(def in python side).
             ```c++
             class PythonBasedModelNode : public CostModelNode {
             public:
@@ -573,9 +573,9 @@
             ```
         * 3 key things, update_func, predict_func, predict_stage_func, all PakcedFunc, thus call the python side corresponding func.
         * For both **Update** and **Predict**, call the corresponding member function.
-        * Lets look at XGBModel defined in xgb_model.py and PythonBaseModel in python side.
+        * Lets look at **XGBModel** defined in **xgb_model.py** and **PythonBasedModel** in python side.
         * in __init\_\_,  call self.\_\_init_handle_by_constructor\_\_(_ffi_api.PythonBasedModel, update_func, predict_func, predict_stage_func), also the udpate_func and predict_func will can self.update, self.predict, i.e., defined in python side.
-        * In XGBModel, import the xgboost lib for train and predict.
+        * In **XGBModel**, import the xgboost lib for train and predict.
             ```python
             global xgb
             try:
