@@ -284,7 +284,7 @@
         * ***Short usage of the special instructions(tensorcore, arm).***, this may due to the weakness of the current tensorization way to utilize the special instruction ? 
         * ***Combination of ansor and graph-level optimization***, i.e., the end-to-end optimization for the whole network graph.
 
-### *2021.4.22->26 & 4.30 & 5.6 & 5.9 & 5.19 & 5.23 & 5.24 & 5.26/27*
+### *2021.4.22->26 & 4.30 & 5.6 & 5.9 & 5.19 & 5.23 & 5.24 & 5.26/27 & 31*
 * ***auto-schedule user-defined operator tracing***:
     * **workload_registry.py**: Workload registration and serialization.
         * WORKLOAD_FUNC_REGISTRY = {} -> Global workload function and hash key registry; 1). user registerd task via decorator **register_workload**. 2). extract tasks from relay program via function **register_workload_tensors**. **register_workload** will register the function_name & func_pointer to the WORKLOAD_FUNC_REGISTRY.
@@ -623,4 +623,87 @@
             ```  
         * Just skip the features packing, convert to xgbmatrix etc.
     * **feature.h/feature.cc**
-        * TODO-END
+        * **feature.h**: defs **GetPerStoreFeaturesFromStates**, **GetPerStoreFeature**, **GetPerStoreFeaturesFromMeasurePairs**, the python side mainly calls these methods to obtain the features as describled above.
+        * **feature.cc**: the features def shown below.
+          * **BufferAccessFeature**:
+            ```c++
+            // Feature for an access of a buffer
+            struct BufferAccessFeature {
+            std::string buffer_name;        // The name of the buffer
+            BufferAccessType acc_type;      // The type of the access
+            float bytes;                    // The touched memory in bytes
+            float unique_bytes;             // The touched unique memory in bytes
+            float lines;                    // The number of touched cache lines
+            float unique_lines;             // The number touched unique cache lines
+            ReuseType reuse_type;           // Tye type of data reuse
+            float reuse_dis_iter;           // The reuse distance in iterator number
+            float reuse_dis_bytes;          // The reuse distance in total touched bytes
+            float reuse_ct;                 // The reuse ratio
+            float bytes_d_reuse_ct;         // bytes / reuse_ct
+            float unique_bytes_d_reuse_ct;  // unique_bytes / reuse_ct
+            float lines_d_reuse_ct;         // lines / reuse_ct
+            float unique_lines_d_reuse_ct;  // unique_lines / reuse_ct
+            float stride;                   // The stride in access
+            };
+            ```
+          * **FeatureSet**:
+            ```c++
+            // Feature set of a BufferStore statement
+            struct FeatureSet {
+            // Group 1: Computation related features
+            float float_mad;                  // The number of float MAD (Multiply–add) ops
+            float float_addsub;               // The number of float add and sub ops
+            float float_mul;                  // The number of float multiply ops
+            float float_divmod;               // The number of float div and mod ops
+            float float_cmp;                  // The number of float comparison ops
+            float float_math_func;            // The number of float math func calls
+            float float_other_func;           // The number of other float func calls
+            float int_mad;                    // The number of integer MAD (Multiply–add) ops
+            float int_addsub;                 // The number of integer add and sub ops
+            float int_mul;                    // The number of float multiply ops
+            float int_divmod;                 // The number of float div and mod ops
+            float int_cmp;                    // The number of float comparison ops
+            float int_math_func;              // The number of float math func calls
+            float int_other_func;             // The number of other float func calls
+            float bool_op;                    // The number of bool ops
+            float select_op;                  // The number of select ops
+            float vec_num;                    // The number of vectorized iterators
+            float vec_prod;                   // The product of the lengths of vectorized iterators
+            float vec_len;                    // The length of the innermost vectorized iterator
+            AnnotationPosType vec_type;       // The type of vectorization position
+            float unroll_num;                 // The number of unrolled iterators
+            float unroll_prod;                // The product of the lengths of vectorized iterators
+            float unroll_len;                 // The length of the innermost unrolled iterator
+            AnnotationPosType unroll_type;    // The type of unroll position
+            float parallel_num;               // The number of paralleled iterators
+            float parallel_prod;              // The product of the lengths of paralleled iterators
+            float parallel_len;               // The length of the innermost paralleled iterators
+            AnnotationPosType parallel_type;  // The type of parallel position
+            float is_gpu;                     // Whether it is a GPU task
+            float blockIdx_x_len;             // The length of blockIdx.x
+            float blockIdx_y_len;             // The length of blockIdx.y
+            float blockIdx_z_len;             // The length of blockIdx.z
+            float threadIdx_x_len;            // The length of threadIdx.x
+            float threadIdx_y_len;            // The length of threadIdx.y
+            float threadIdx_z_len;            // The length of threadIdx.z
+            float vthread_len;                // The length of virtual thread
+
+            // Group 2: Buffer access related features (per buffer)
+            std::vector<BufferAccessFeature> access_feas;
+
+            // Group 3: Arithmetic intensity related features
+            float arith_intensity_curve[ARITH_INTENSITY_CURVE_SAMPLE_N];  // points sampled from the
+                                                                            // arithmetic intensity curve
+
+            // Group 4: Allocation related features
+            float alloc_size;        // The size of allocated buffer in bytes
+            float alloc_outer_prod;  // The product of lengths of loops outside the scope of the allocation
+            float alloc_inner_prod;  // The product of lengths of loops inside the score of the allocation
+            float alloc_prod;        // alloc_outer_prod * alloc_inner_prod
+
+            // Group 5: Outer scope related features
+            float outer_prod;            // The product of lengths of outer loops
+            float num_loops;             // The number of outer loops
+            float auto_unroll_max_step;  // The value of pragma "auto_unroll_max_step"
+            };
+            ``` 
