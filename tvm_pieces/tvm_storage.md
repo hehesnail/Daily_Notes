@@ -2,7 +2,7 @@
 ### 计算图 (Dataflow Graph)
 * 类似于tensorflow，TVM采用计算图来描述整体计算的流程，如下图所示，图中节点(Operation)为具体的计算描述(通过compute / extern / hybrid描述)如matmul，conv2d等等，而其输入输出则为Tensor，因此不难看出TVM中计算图是以Operation为Node，以Tensor为Edge的Graph。
 <div align="center">
-<img src=https://github.com/hehesnail/Boring_code/blob/main/imgs/dataflow_graph.png/ width=70%, height=70%>
+<img src=https://github.com/hehesnail/Boring_code/blob/main/imgs/dataflow_grah.png/ width=70%, height=70%>
 </div>
 
 * 计算图也被称为数据流图(Dataflow Graph)，即数据从Placeholder流入，经过图中路径上多个Op进行一系列运算，最终得到输出Tensor。需要注意的是，其Dataflow Graph具有SSA (静态单赋值) 的性质，即每个Tensor进入一个Op，被Op消耗 (Consume) 后，该Op会产生 (Produce) 新的Tensor作为输出。此性质影响了后续 TVM的Tensor管理机制，即先对Tensor/Buffer进行变换，后续通过一个Pass合并冗余内存。
