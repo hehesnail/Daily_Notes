@@ -6,7 +6,9 @@
 * 2). The MLIR project is also “batteries-included”: on top of the generic infrastructure, multiple abstractions and code transformations are integrated. 
 * 3). The “multi-level” aspect is very important in MLIR: adding new levels of abstraction is intended to be easy and common. 
 * The below figure demonstrates that by defining mult-level IRs in different design space and lower from high-level IR to low-level IR, one can quickly define an IR and reuse the infra of MLIR to do remaining things.
-<center> <img src="https://github.com/hehesnail/Boring_code/blob/main/imgs/mlir_intuition.PNG" width="70%" height="70%" /> </center>
+<div align="center">
+<img src="https://github.com/hehesnail/Boring_code/blob/main/imgs/mlir_intuition.PNG" width="70%" height="70%" /> 
+</div>
 
 * Tutorial Chapter 2: Emitting Basic MLIR  
   * MLIR is designed to be a completely extensible infrastructure; there is no closed set of attributes (think: constant metadata), operations, or types. MLIR supports this extensibility with the concept of **Dialects** . **Dialects** provide a grouping mechanism for abstraction under a unique namespavce. 
