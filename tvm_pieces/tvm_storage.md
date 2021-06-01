@@ -2,7 +2,7 @@
 ### 计算图 (Dataflow Graph)
 * 类似于tensorflow，TVM采用计算图来描述整体计算的流程，如下图所示，图中节点(Operation)为具体的计算描述(通过compute / extern / hybrid描述)如matmul，conv2d等等，而其输入输出则为Tensor，因此不难看出TVM中计算图是以Operation为Node，以Tensor为Edge的Graph。
 <div align="center">
-<img src=https://github.com/hehesnail/Boring_code/tree/main/imgs/dataflow_graph.png/ width=70%, height=70%>
+<img src=https://github.com/hehesnail/Boring_code/blob/main/imgs/dataflow_graph.png/ width=70%, height=70%>
 </div>
 
 * 计算图也被称为数据流图(Dataflow Graph)，即数据从Placeholder流入，经过图中路径上多个Op进行一系列运算，最终得到输出Tensor。需要注意的是，其Dataflow Graph具有SSA (静态单赋值) 的性质，即每个Tensor进入一个Op，被Op消耗 (Consume) 后，该Op会产生 (Produce) 新的Tensor作为输出。此性质影响了后续 TVM的Tensor管理机制，即先对Tensor/Buffer进行变换，后续通过一个Pass合并冗余内存。
@@ -25,7 +25,7 @@ TensorNode中成员变量，从中可知，对于一个Tensor其主要包含shap
 ## Tensor管理机制
 ### 整体流程
 <div align="center">
-<img src=https://github.com/hehesnail/Boring_code/tree/main/imgs/tvm_storage.png/ width=70%, height=70%>
+<img src=https://github.com/hehesnail/Boring_code/blob/main/imgs/tvm_storage.png/ width=70%, height=70%>
 </div>
 上图为TVM整体Tensor最终变换为Alloacte Stmt(codegen时变换为内存申请)语句的整体流程；左中右分别为当前Pass，Pass会将Tensor或Buffer转换为进一步的IR Stmt/Expr类型，以及Pass中使用到的映射关系，例如Tensor-Buffer映射；
 
@@ -51,7 +51,7 @@ TensorNode中成员变量，从中可知，对于一个Tensor其主要包含shap
 
 ### Storage Flatten Pass
 <div align="center">
-<img src=https://github.com/hehesnail/Boring_code/tree/main/imgs/storage_flatten.png/ width=70%, height=70%>
+<img src=https://github.com/hehesnail/Boring_code/blob/main/imgs/storage_flatten.png/ width=70%, height=70%>
 </div>
 
 * 这个pass的主要作用是将 multi-dim 的访问 变换为 1-d buffer array的访问StorageFlattener 构造时针对 primfunc 外部传入的 buffer_map (Var-Buffer) 构造内部 buf_map_ (Buffer-BufferEntry)继承自  StmtExprMutator，重载其中对于 Stmt 以及 Expr的访问，对于primfunc中的body进行变换；
@@ -71,7 +71,7 @@ TensorNode中成员变量，从中可知，对于一个Tensor其主要包含shap
 
 ***Storage Rewrite Pass***
 <div align="center">
-<img src=https://github.com/hehesnail/Boring_code/tree/main/imgs/storage_rewrite.png/ width=50%, height=50%>
+<img src=https://github.com/hehesnail/Boring_code/blob/main/imgs/storage_rewrite.png/ width=50%, height=50%>
 </div>
 
 * Function: Memory access pattern analysis and optimization, re-write data access to enable memory shareing as mush as possible.
