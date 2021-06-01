@@ -6,10 +6,10 @@
 * 2). The MLIR project is also “batteries-included”: on top of the generic infrastructure, multiple abstractions and code transformations are integrated. 
 * 3). The “multi-level” aspect is very important in MLIR: adding new levels of abstraction is intended to be easy and common. 
 * The below figure demonstrates that by defining mult-level IRs in different design space and lower from high-level IR to low-level IR, one can quickly define an IR and reuse the infra of MLIR to do remaining things.
-<center> <img src="../imgs/mlir_intuition.png" width="70%" height="70%" /> </center>
+<center> <img src="https://github.com/hehesnail/Boring_code/tree/main/imgs/mlir_intuition.png" width="70%" height="70%" /> </center>
 
 * Tutorial Chapter 2: Emitting Basic MLIR  
-  * MLIR is designed to be a completely extensible infrastructure; there is no closed set of attributes (think: constant metadata), operations, or types. MLIR supports this extensibility with the concept of **Dialects** . **Dialects** provide a grouping mechanism for abstraction under a unique namespace. 
+  * MLIR is designed to be a completely extensible infrastructure; there is no closed set of attributes (think: constant metadata), operations, or types. MLIR supports this extensibility with the concept of **Dialects** . **Dialects** provide a grouping mechanism for abstraction under a unique namespavce. 
   * **Operations**: core unit of abstraction and computation, similar in many ways to LLVM instructions. Operations can have application-specific semantics and can be used to represent all of the core IR structures in LLVM: instructions, globals (like functions), modules, etc.
   * **Concepts of Operation**: 1). A name for the operation; 2). A list of SSA operand values; 3). A list of attributes; 4). A list of types for result values; 4). A source location for debugging purposes; 5). A list of successors blocks (for branches, mostly); 6). A list of regions (for structural operations like functions).
   * A dialect inherits from **mlir::Dialect** and registers custom attributes, operations, and types. It can also override virtual methods to change some general behavior.
