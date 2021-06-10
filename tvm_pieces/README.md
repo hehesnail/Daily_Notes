@@ -106,14 +106,7 @@
   
 ### *2021.2.19*
 * ***Storage Flatten Pass***
-    * 这个pass的主要作用是将 multi-dim 的访问 变换为 1-d buffer array的访问StorageFlattener 构造时针对 primfunc 外部传入的 buffer_map (Var-Buffer) 构造内部 buf_map_ (Buffer-BufferEntry)继承自  StmtExprMutator，重载其中对于 Stmt 以及 Expr的访问，对于primfunc中的body进行变换；
-    * 在经过 schedule_ops 及 schedule_postproc_to_primfunc两个pass之后，body的形式在 MakePipeline的时候在每个 OP 对应的外层部分一般为 attr_stmt realize_scope；ProducerRealizeNode，ProducerStoreNode，ProducerLoadNode变换为对应的 BufferRealize, BufferStore, BufferLoad；
-    * 对于 AttrStmt解析，realize_scope (每个op均有)，获取stage 所对应的 storage_scope后对body进行递归分析，因为在MakePipeline的时候，每个producer的最外层为realize_scope，因此定会对当前op中所对应的stmt body进行遍历，主要针对其中的 BufferRealizeNode；
-    * 对于 BufferRealizeNode，若对应的buffer在 buf_map_中找到(首次为外部buf_map)，则返回即可，因默认外部buffer 已经分配好；否则创建BufferEntry，获取对应bounds (extent)创建shape，获取storage_scope；计算buffer aligmnet信息前会先依据shape计算allocate的const_size(即shape乘积) 后获取 align对齐(默认128字节对齐)；而dim级别的align信息仅针对compute，此之前对 buffer_dim_align 的解析，可以获取到dim_info_(map)后对每一维度创建strides(其他op可为空)，依据之前信息创建新的Buffer，并添加进入 buf_map_中；并创建对应的 AllocateNode；从这个角度来看，BufferRealizeNode主要目的在于创建 整个Pipeline中的 Buffer，总感觉放在 StorageFlatten Pass中怪怪的。
-    * 对于 BufferLoadNode，check buffer存在后对于bounds和indices对于Index重新变换，之后主要返回Buffer vload (tir::Load)，Flatten体现，计算偏移通过 BufferOffset -> ElemOffset；同理对于BufferStoreNode，也是一样的流程，不过为 Buffer vstr::Store)，偏移计算也是通过 BufferOffset -> ElemOffset将多维访问变为一维；
-    * 对于VarNode，LoadNode，StoreNode则判断是否需要对其中 Var进行 remap(仅当ExternOp时需要)，不需要则直接返回即可；
-    * 对于 ExternOp则调用 handle_bind_scope进行处理，因为其在Provide的时候会对Op 传入的外部Buffer和该Op output tensor 和 input tensor 添加 buffer_bind_scope, 经过先前的处理, tensor已经为对应的buffer, 主要作用是先做 begin, extents的变换，后将对应buffer make Slice为对应的 shape 后调用 ArgBinder 对于将 buffer 中 Var bind 至 在buf_map中找到的 target buffer对应的 Var上，具体其实是在var_remap中添加对应 Var的替换关系后，Visit AttrStmt中的 body, 而 body中的 VarNode, LoadNode, StoreNode中对应的 Var则会被替换为对应的 target buffer 的 Var, 对 buffer_bind_scope AttrStmt处理完成之后，则清除掉对应的 var_remap关系；
-    * TODO(添加 ProducerRealizeNode -> Postproc_to_Primfunc 中 Buffer -> Flatten 中 Buffer中间的差异，以及为什么整这么复杂)
+    * Ref [tvm tensor management notes](https://github.com/hehesnail/Boring_code/blob/main/tvm_pieces/tvm_storage.md)
 ### *2021.3.7*
 * ***Some notes***
     * Writing a Customized Pass: https://tvm.apache.org/docs/tutorials/dev/low_level_custom_pass.html#sphx-glr-tutorials-dev-low-level-custom-pass-py 
@@ -126,76 +119,8 @@
     * 目前来看, 关于Block 的 PR已经提了;
 ### *2021.3.15 & 16 & 17*
 * ***Storage Rewrite Pass***
-    * Function: Memory access pattern analysis and optimization, re-write data access to enable memory shareing as mush as possible.
-    * Rewrite calls: LinearAccessPatternFinder -> LivenessAnalysis -> PlanMemory -> PrepareNewAlloc -> rewrite by operator() -> MakeAttach 
-    * **LinearAccessPatternFinder** ---> 主要作用是:  
-      * 1). 对每个storage_scope所对应的 Var 在 alloc_info_ info中添加, 并set storage scope.  
-      * 2). 对于For/IfThenElse/Assert等stmt, thread_extent/extern_scope/virtual_thread对应的attr stmt, 调用 VisitNewScope 将其分割开, 每个VisitNewScope 会在 linear_seq_ 添加对应的 before_scope, after_scope, 而该 scope 中的分析递归 visit op即可, 因此会有 nested_scope的情形出现；每次进入会在 scope_ 中 push StmtEntry, 而 after_scope后则 pop, 借用 scope_ stack 可以获取到当前的 Stmt Node处于 哪个 scope 中, 使用 scope_level 来标识. 每次的 touched vars 仅在 after_scope时候更新，因此 touched size 不为 0的 offset均为负.  
-      * 3). 那么对于 Allocate Stmt, 获取对应 buffer_var 的 AllocEntry, 更新对应 Allocate Stmt以及 scope_level 为当前 Allocate Stmt所在位置.
-      * 4). 对于其他会使用到 Var的 Stmt (Store, Load, Var), 在alloc_info中获取 Var 对应的 Alloc Stmt所在的 scope_level, 并在对应 level scope_ 中添加该 Var 为 touched, 即在此level的 scope中会有这些 Var访问到Allocate所分配的buffer_var.
-      * 5). 两个重要的数据结构: StmtEntry & AllocEntry, StmtEntry 主要标识当前 scope 对应 Stmt, scope在 linear_seq_中范围, 以及其牵扯到的 Var访问(R/W); AllocEntry 主要标记每个 Allocate 所在的 scope 层级, 以及对应 Allocate Stmt.
-      * 6). 两个被后续使用成员: linear_seq_ & alloc_info_
-      * linear_seq_: vector<StmtEntry\>, 其中包含了所有scope的起始和终止(bef_scope, aft_scope), 可获取每个scope中对应访问(R/W)过的所有 Vars;
-      * alloc_info_: unordered_map<const VarNode*, AllocEntry\>, 可获取得到所有 Var所对应的 Alloc (stmt,scope_level, storage_scope).
-      * 在这里需要注意理解 scope, scope主要在这里用以来划定 程序局部区域, 其包含了范围那些变量的信息, 可以来帮忙界定对应 alloc 的生存范围, 比如若存在某个变量在此区域后就未被使用了, 那么其可在该 scope被 kill, 因此后续则会被添加到 scope 对应的 kill vars中; 若存在某个变量在该区域第一次使用, 那么其应在这里被 gen, 也就是分配内存的操作直到这里才开始进行; 而 linear_seq_ 中 scope 往往是 nested scope, 对应 offset很可能出先类似 [8, [3, [1, -1], -3], [3, [1, -1], -3], -8], 注意这里的 从 + 进后 从对应 - 出的时候,  若有 kill vars, 则 free掉; 在后续和该 scope 同级的 scope 就有复用 被释放掉 vars的机会 (storage rewrite 的主要目的). 
-    * **LivenessAnalysis**:  find gen and kill point of each variable by filling the event_map_ ---> unordered_map<const Object*, EventEntry\>
-      * EnventEntry: vector<cosnt VarNode*\> gen, vector<const VarNode*\> kill   
-      * kill point: 逆序遍历 linear_seq_, 即从最后的 nested scope开始向前, 即从最后使用 touched vars的scope开始, 此即为其中scope touch vars的生命周期, 故 对应Var 因在之后被kill. 每次在 event_map_ 中 对scope stmt 对应的 EnventEntry的 kill 中添加 touched vars (not visited yet).
-      * gen point: 顺序遍历 linear_seq_, 从最初的nested_scope 开始，即最先使用该 Var的 scope 开始, 故对应 Var因在此前被 gen. 每次在event_map_ 中对 scope stmt 对应的 EventEntry 的 gen中添加 touch vars (not visited yet).
-    * **PlanMemory**: Utilize linear_seq_ and alloc_info_ to do memory planning  
-      *  PlanMemory所使用信息: 
-         * linear_seq_ ---> scope 对应 stmt 及 scope 中 touched vars; 
-         * alloc_info_ ---> VarNode 所对应 Alloc Stmt, storage_scope and scope_level; 
-         * event_map_ ---> 每个 scope 对应 stmt 所包含的 gen vars & kill vars;
-      * ```c++
-        for (i = 0; i < seq.size(); i++)  
-            find seq[i].stmt in event_map_  
-                // begin scope process, offset >= 0
-                // stmt denotes seq[i].stmt for simplicity
-                if found && offset >= 0
-                    for (var : stmt related gen vars)
-                        detect inplace if only gen < 2
-                            for (var : stmt related kill)
-                                if exist gen var in kill vars (may exist in place)
-                                    InplaceOpVerifier
-                                    if pass inplace check
-                                        StorageEntry of this dst_entry(gen) is src_entry(kill)
-                        dst_entry = FindAlloc(gen var related alloc ...)
-                        dst_entry->allocs add related alloc
-                        add <var, dst_entry> in alloc_map_
-                // enter/exit new_scope
-                if AttrStmt
-                    if thread_extent || virtual_thread
-                        PlanNewScope -> update thread_scope_ to op
-                else if For
-                    if Parallel type For
-                        PlanNewScope -> udpate thread_scope_ to op
-                // exit the scope, we can free the stmt related kill vars
-                if found && offset <= 0
-                    for (var : stmt reated kill vars)
-                        Free(var) if not inplace substitute
-        ```
-     * **PlanMemory**比较复杂...  
-       * 1).首先对event_map_中对应的**gen vars**(此时外层先被access)进行**内存分配**即创建对应的 StorageEntry 并添加进入 alloc_map_中; 分配前做 InplaceOp检测，主要会借助 InplaceOpVerifier 检测 inplace 操作，若是对var进行合并，复用之前 src的 StorageEntry即可；若不是inplace，则调用 FindAlloc 创建新的 StorageEntry 并进行内存分配；之后将对应分配结果添加进入 alloc_map_中. 
-       * 2). 之后判断是否 enter/exit new_scope，这个主要跟 thread强相关，在 AttrStmt为 thread_extent 和 virtual_thread的时候会对 thread_scope_ 更新，在 For 为 parallel(即做了 parallel) 优化后的也会更新 thread_scope_. 
-       * 3). 最后对 event_map_中对应 **kill vars**, offset为负(内层先被access, also free first). 针对对应的 kill var，若其没有被 inpalce操作，则 Free, 其实是在const_free_map_ & sym_free_list_中添加 var 对应 StorageEntry，从而被之后的 FindAlloc时可复用. 比如 [8, [3, [1, -1], -3], [3, [1, -1], -3], -8], 进行是否可 free 的判断顺序会为, -1, -3, -1, -3, -8; 可以看出 nested_scope 中 free 后的 var 的复用也是同 free scope 所同级别的 scope, 不被 free 当前所在的scope所包含在内; 
-     * **PlanMemory -> InplaceOpVerifier**  
-       * 主要验证刚被 kill 的 var(src) 是否 可被下一个 gen 的 var(dst)所复用(也就是当前 scope 存在gen var后 立马释放 对应var, 那么对应的op很有可能就是 inplace opeartion); 这个 Verifier主要验证  dst[index\] = f(src[index\]), 具体判断规则看代码;
-     * **PlanMemory -> FindAlloc**   
-       * 在没有 inplace 复用的情况下, 调用 FindAlloc 进行 StorageEntry 的分配; 
-       * FindAlloc/Free 和 linear_seq_中scope 对应 event_map_中 gen/kill vars进行联动易求完成对前一 scope free的 vars 的复用; 
-       * Free 的 Vars 会首先找到 alloc_map_ 中对应 StorageEntry, 并根据alloc const_n_bits 是否为 0 将对应 StorageEntry 添加进入 const_free_map(const size) 及 sym_free_list(dynamic size)中; 
-       * 若在 const_free_map / sym_free_list 中找到满足条件的 StorageEntry, 则复用对应的 StorageEntry, 且返回后在对应的牵扯 allocs中添加到该 var对应 alloc, 即该alloc会被合并; 没找到就很直接，NewAlloc就行了, NewAlloc create 的 new StorageEntry 会被添加进 alloc_vecs_中; 
-       * 此时的 attach_scope_ 为外部传入, 而该 attach_scope 为 thread_scope_ 尽在 PlanNewScope的时候会被更新;
-     * **PlanMemory -> PlanNewScope**: 这个还需更深入理解下 thread_scope_ 切换的时机, 目前来看 AttrStmt(thread_extent/virtual_thread) / For(parallel) 层级的 scope 的 gen vars是在这之前完成的, gen vars成功分配 StorageEntry之后才会进入这个 PlanNewScope, 所以 update thread_scope_ 之后 gen vars 对应的 scope 应包含在当前这个 scope之内, 这之内的 gen vars就希望进行局部 alloc/free, 且不可被其他 var复用分配内存;
-     * **PrepareNewAlloc** -> 在上述 alloc_map_, alloc_vecs_这些准备好了之后 fill attach_map_  
-       * 首先将 alloc_vecs中所有的 StorageEntry 中 <attach_scope_, StorageEntry*\>作为 kv 对添加进入 attach_map_中
-       * 遍历 attach_map_ 中 kv对, 遍历同一 key (attach_scope) 中所有 StorageEntry 更新其中 new_alloc 为新创建的 Allocate; 这当中会根据 StorageEntry中 allocs的个数判断是否进行 allocate合并. allocs.size() > 0 就是有多个 alloc 共享这个 StorageEntry 此时新创建 Allocate 分配大小为 几个 alloc中最大; 若为0, 直接create Allocate即可.
-     * **Rewrite**: 使用 attach_map_ 对 当前 stmt进行 rewrite, 因在之前的处理当中, inplace op被合并, 可被复用的内存已被复用; 针对 thread 的 thread_extent, virtual_thread, For parallel, 对应的 Alloc 被 attach 到 当前的 op (AttrStmt, For op); 因此, 此时 attach_map_ 含有 nullptr 对应 global allocs, others attached op 对应的 local allocs. 那么当前的策略是:  
-       * 1). 对 thread 相关的 thread_extent, virtual_thread, For, 若 attach 到对应 op, 则 MakeAttach 拼接 该 attach_scope 对应的 所有内存分配 StorageEntry对应 alloc 和 op body; 原地 alloc, 且 alloc 对应的 body为该 op body, 此时其作用范围仅限 op_body 对应部分, 超出即释放.
-       * 2). 对于其他 Stmt Node, 如 StoreNode, LoadNode, VarNode, CallNode 等，则在 alloc_map_中查询对应新 alloc 的 buffer_var 并更新其中 var的部分后 return modified stmt 即可. 而 attach_scope 为 nullptr 的 global 内存分配 (StorageEntry), 会在所有 stmt更新完成之后, 调用 MakeAttach 拼接 该 attach_scope(global) 对应的所有 allocs 和 stmt, 即此时会将这部分 alloc提升至全局.
-
-### *2021.3.23 & 24 & 25 & 26 & 27 & 28*
+    * Ref [tvm tensor management notes](https://github.com/hehesnail/Boring_code/blob/main/tvm_pieces/tvm_storage.md)
+### *2021.3.23 -> 28*
 * ***Schedule Lang***  
     *  Schedule & Stage creation ---> Done
     *  ScheduleOps: main process to obtain body ---> Done
@@ -257,3 +182,16 @@
 ### *2021.4 & 5*
 * Auto Schedule Summary Notes: [auto_schedule notes](https://github.com/hehesnail/Boring_code/blob/main/tvm_pieces/auto_schedule_notes.md)
 * TVM Tensor Management Notes: [tvm tensor management notes](https://github.com/hehesnail/Boring_code/blob/main/tvm_pieces/tvm_storage.md)
+
+### *2021.6*
+* Relay paper notes -> TODO
+* Workflow
+  * **function.py & build_module.py & build_module.cc**
+    * 一般来说，先创建 Relay **Function**(relay.ir.Function)，通过传入 params(tvm.relay.Var) 以及 body(tvm.relay.Expr)创建; 后将该 func 添加进入**IRMoulde**中; 可通过 BindParamsByName 绑定 Function中对应 Var 为外部参数（如权重），针对其中 VarNode 直接替换为对应 Const即可;
+      * Relay FunctionNode ---> BaseFuncNode ---> RealyExprNode; 其中RelayExprNode的描述，BaseNode of all-non primitive expressions, 而依照Paper中说法，DL type system一个特殊的点在于要将 function call等操作看作 primitive 同等级的，RelayExprNode支持 tensor types, functions, ADT作为第一等公民; 
+      * PrimExprNode 中 DataType 同 RelayExprNode 中 tvm::Type的区别; PrimExpr的数据类型匹配是通过runtime时候进行check，这对于 POD Value是足够的; 对于 Tensor Type等类型，需要借助其文中提到的type system进行 type inference; 因此，BaseFunc 继承 RelayExpr， PrimFunc 以及 RelayFunc继承自BaseFunc;
+    * call build, helper func builds relay func to graph exectutor; 
+      * 主要参数为 IRModule，params(str->NDArray)，以及target信息; 
+      * 对于直接传入Func而言， 先绑定 params 后 create IRModule;
+      * 后续创建 BuildModule 对象， call build method ---> ret graph_json/runtime module/ graph params; 后根据 executor， 返回对应 AOTExecutorFactoryModule or GraphExecutorFactoryModule.
+    * python side BuildModule __init\_\_ call _BuildModule defined at cxx side, 创建 RelayBuildModule ret. 其余函数有通过 Module __get_item\_\_调用 GetFunction获取 cxx端返回PackedFunc;
