@@ -186,12 +186,53 @@
 ### *2021.6*
 * Relay paper notes -> TODO
 * Workflow
-  * **function.py & build_module.py & build_module.cc**
-    * 一般来说，先创建 Relay **Function**(relay.ir.Function)，通过传入 params(tvm.relay.Var) 以及 body(tvm.relay.Expr)创建; 后将该 func 添加进入**IRMoulde**中; 可通过 BindParamsByName 绑定 Function中对应 Var 为外部参数（如权重），针对其中 VarNode 直接替换为对应 Const即可;
-      * Relay FunctionNode ---> BaseFuncNode ---> RealyExprNode; 其中RelayExprNode的描述，BaseNode of all-non primitive expressions, 而依照Paper中说法，DL type system一个特殊的点在于要将 function call等操作看作 primitive 同等级的，RelayExprNode支持 tensor types, functions, ADT作为第一等公民; 
-      * PrimExprNode 中 DataType 同 RelayExprNode 中 tvm::Type的区别; PrimExpr的数据类型匹配是通过runtime时候进行check，这对于 POD Value是足够的; 对于 Tensor Type等类型，需要借助其文中提到的type system进行 type inference; 因此，BaseFunc 继承 RelayExpr， PrimFunc 以及 RelayFunc继承自BaseFunc;
-    * call build, helper func builds relay func to graph exectutor; 
-      * 主要参数为 IRModule，params(str->NDArray)，以及target信息; 
-      * 对于直接传入Func而言， 先绑定 params 后 create IRModule;
-      * 后续创建 BuildModule 对象， call build method ---> ret graph_json/runtime module/ graph params; 后根据 executor， 返回对应 AOTExecutorFactoryModule or GraphExecutorFactoryModule.
-    * python side BuildModule __init\_\_ call _BuildModule defined at cxx side, 创建 RelayBuildModule ret. 其余函数有通过 Module __get_item\_\_调用 GetFunction获取 cxx端返回PackedFunc;
+* **function.py & build_module.py & build_module.cc**
+  * 一般来说，先创建 Relay **Function**(relay.ir.Function)，通过传入 params(tvm.relay.Var) 以及 body(tvm.relay.Expr)创建; 后将该 func 添加进入**IRMoulde**中; 可通过 BindParamsByName 绑定 Function中对应 Var 为外部参数（如权重），针对其中 VarNode 直接替换为对应 Const即可;
+    * Relay FunctionNode ---> BaseFuncNode ---> RealyExprNode; 其中RelayExprNode的描述，BaseNode of all-non primitive expressions, 而依照Paper中说法，DL type system一个特殊的点在于要将 function call等操作看作 primitive 同等级的，RelayExprNode支持 tensor types, functions, ADT作为第一等公民; 
+    * PrimExprNode 中 DataType 同 RelayExprNode 中 tvm::Type的区别; PrimExpr的数据类型匹配是通过runtime时候进行check，这对于 POD Value是足够的; 对于 Tensor Type等类型，需要借助其文中提到的type system进行 type inference; 因此，BaseFunc 继承 RelayExpr， PrimFunc 以及 RelayFunc继承自BaseFunc;
+  * call build, helper func builds relay func to graph exectutor; 
+    * 主要参数为 IRModule，params(str->NDArray)，以及target信息; 
+    * 对于直接传入Func而言， 先绑定 params 后 create IRModule;
+    * 后续创建 BuildModule 对象， call build method ---> ret graph_json/runtime module/ graph params; 后根据 executor， 返回对应 AOTExecutorFactoryModule or GraphExecutorFactoryModule.
+  * python side BuildModule __init\_\_ call _BuildModule defined at cxx side, 创建 RelayBuildModule ret. 其余函数有通过 Module __get_item\_\_调用 GetFunction获取 cxx端返回PackedFunc;
+  * key function **BuildRelay in build_module.cc**
+  * **BuildRelay**: 
+    * **Optimize** ---> 图级别的优化，最重要的可能是 fuse_ops，从算法上看是基于 dataflow分析;在 graph level 优化后，CallNode中对应的 Op不为 OpNode，因其被fuse，为 FunctionNode;
+    * **Codegen** ---> MakeExecutorCodegen (ret GraphCodegen, AOTCodegen), 因此 Codegen也为对应GraphCodegen 或 AOTCodgen的方法;
+    * **GraphExecutorCodgen::Codegen**: GraphPlanMemory -> convert input params -> Visit func body -> update metadata & ret.
+    * **GraphExecutorCodgen::CallNode**: 这里仅可为 FunctionNode，获取func，在其上作用 _make_CCacheKey 以及 **_CompileEngineLower**，经过 lower后会选择合适的 Op实现，并且将 FunctionNode最终转换为 PrimFunc，其内部主要调用 **LowerInternal**;
+    * **LowerInternal**: CreateSchedule -> LowerSchedule, 主要创建 Schedule，这里就会将FuncNode中全部变为 Operation; 如下可以展示，中间到底发生了啥;
+    ```c++
+    // Just relay.nn.dense & relay.sigmoid
+    
+    //************** bef create schedule **************
+    FunctionNode([Var(p0, ty=TensorType([5, 5], float32)), Var(p1, ty=TensorType([1, 5, 5], float32))], TensorType([5, 5], float32), CallNode(Op(sigmoid), [CallNode(Op(nn.contrib_dense_pack), [Var(p0, ty=TensorType([5, 5], float32)), Var(p1, ty=TensorType([1, 5, 5], float32))], relay.attrs.DenseAttrs(0x218cde8), [TensorType([5, 5], float32), TensorType([1, 5, 5], float32)])], (nullptr), [TensorType([5, 5], float32)]), [], {"Primitive": 1, "hash": "a2d3f5d197085d29"})
+
+    //**************aft create schedule, the sch **************
+    stage(placeholder, placeholder(placeholder, 0x1fb22c0))
+    stage(placeholder, placeholder(placeholder, 0x1f7ae60))
+    stage(compute.global, compute(compute.global, body=[reduce(combiner=comm_reducer(result=[(x + y)], lhs=[x], rhs=[y], identity_element=[0f]), source=[(placeholder[y.c, k]*placeholder[floordiv(x.c, 5), k, floormod(x.c, 5)])], init=[], axis=[iter_var(k, range(min=0, ext=5))], where=(bool)1, value_index=0)], axis=[iter_var(y.c, range(min=0, ext=5)), iter_var(x.c, range(min=0, ext=5))], reduce_axis=[iter_var(k, range(min=0, ext=5))], tag=dense_pack, attrs={"workload": ["dense_pack.x86", ["TENSOR", [5, 5], "float32"], ["TENSOR", [1, 5, 5], "float32"], (nullptr), "float32"]}))
+    stage(compute, compute(compute, body=[compute.global[y, x]], axis=[iter_var(y, range(min=0, ext=5)), iter_var(x, range(min=0, ext=5))], reduce_axis=[], tag=dense_pack, attrs={"workload": ["dense_pack.x86", ["TENSOR", [5, 5], "float32"], ["TENSOR", [1, 5, 5], "float32"], (nullptr), "float32"]}))
+    stage(T_sigmoid, compute(T_sigmoid, body=[tir.sigmoid(compute[ax0, ax1])], axis=[iter_var(ax0, range(min=0, ext=5)), iter_var(ax1, range(min=0, ext=5))], reduce_axis=[], tag=elemwise, attrs={}))
+
+    //*** lower primfunc name: fused_nn_contrib_dense_pack_sigmoid ***
+    IRModule({GlobalVar(fused_nn_contrib_dense_pack_sigmoid): PrimFunc([placeholder, placeholder, T_sigmoid]) attrs={"global_symbol": "fused_nn_contrib_dense_pack_sigmoid", "tir.noalias": (bool)1} {
+        parallel (ax1.outer.ax0.outer.fused, 0, 5) {
+            // attr [compute.global] storage_scope = "global"
+            allocate compute.global[float32 * 5]
+            compute.global[ramp(0, 1, 5)] = x5(0f)
+            for (k.outer, 0, 5) {
+                compute.global[ramp(0, 1, 5)] = (compute.global[ramp(0, 1, 5)] + (x5(placeholder[((ax1.outer.ax0.outer.fused*5) + k.outer)])*placeholder[ramp((k.outer*5), 1, 5)]))
+            }
+            for (ax1.inner.inner.s, 0, 5) {
+                T_sigmoid[((ax1.outer.ax0.outer.fused*5) + ax1.inner.inner.s)] = tir.sigmoid(compute.global[ax1.inner.inner.s])
+            }
+        }
+    }
+    })
+    ``` 
+    * **ScheduleGetter**: the CreateSchedule impl, call Create, convert and add inputs/outputs, visit body;
+    * **ScheduleGetter::CallNode**: 主要使用 relay.backend.lower_call 来进行 impl的选择，该函数定义在 python side， **select_implementation** 完成 op 的选择;
+    * TODO ---> 添加 select_impl分析，同时完成 op定义 -> add_impl -> select by op_strategy whole process.
+    * Comments:到这可以看出对于 tvm relay来说，和 TIR 层级不同点在于其计算图组成有很多的 CallNode组成，在使用 relay描述计算时，其对应为Op，而在 optmize, lower等过程中，其通过fuse变换为 FunctionNode，此也可以看作将 graph 划分为多个子图，而每个FunctionNode则会被 lower为对应的 primfunc, 此时主要通过将 FunctionNode中对应 Call选择合适的 Op实现(i.e., schedule)，并且对于 CallNode 添加 inputs/outputs tensors，其实这里是将其转为 TIR 层级的计算图 (Op-Tensor graph).
+* **TODO fuse_ops**
