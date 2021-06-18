@@ -9,7 +9,7 @@
 <img src="https://github.com/hehesnail/Boring_code/blob/main/imgs/mlir_intuition.PNG" width="70%" height="70%" /> 
 </div>
 
-## Tutorial Chapter 2: Emitting Basic MLIR  
+## Tutorial chapter 2: Emitting Basic MLIR  
   * MLIR is designed to be a completely extensible infrastructure; there is no closed set of attributes (think: constant metadata), operations, or types. MLIR supports this extensibility with the concept of **Dialects** . **Dialects** provide a grouping mechanism for abstraction under a unique namespavce. 
   * **Operations**: core unit of abstraction and computation, similar in many ways to LLVM instructions. Operations can have application-specific semantics and can be used to represent all of the core IR structures in LLVM: instructions, globals (like functions), modules, etc.
   * **Concepts of Operation**: 
@@ -27,8 +27,15 @@
   * **Operation Definition Specification(ODS) framework**: Facts regarding an operation are specified concisely into a TableGen record, which will be expanded into an equivalent mlir::Op C++ template specialization at compile time. Using the ODS framework is the desired way for defining operations in MLIR given the simplicity, conciseness, and general stability in the face of C++ API changes.
   * The Tablegen and ODS framework make it much easier to define the dialects and operations.
 
-## Tutorial Chapter 3: High-level Language-Specific Analysis and Transformation
+## Tutorial chapter 3: High-level Language-Specific Analysis and Transformation
 * MLIR Generic DAG Rewriter 
 * Two ways to impl pattern-match transformations: 1). Imperative, C++ pattern-match and rewrite; 2). Declarative, rule-based pattern-match and rewrite using table-driven Declarative Rewrite Rules (DRR) ---> Operations defined using ODS.
 * C++, inherits from mlir::OpRewritePattern, matchAndRewrite method.
 * DDR, class Pattern<dag sourcePattern, list<dag\> resultPatterns, list<dag\> additionalConstraints = [], dag benifhitsAdded = (addBenifit 0)\>; fill the basic template with specified rules.  
+
+## Tutorial chapter 4: Enabling Generic Transformation with Interfaces
+* **Core idea**: make the MLIR infrastructure as extensible as the representation, thus Interfaces provide a generic mechanism for dialects and operations to provide information to a transformation or analysis.
+* Shape inference for toy lang: based on function specialization, inline all of func calls and perform intra-procedural shape propagation.
+* Provide the interfaces for the inliner to hook into. **dialect interface**: a class containing a set of virtual hooks which the dialect can override. In this case, interface is DialectInlinerInterface.
+* **operation interface** -> can be used to mark an operation as being "call-like". for this case, use the CallOpInterface.
+* **Intraprocedural Shape Inference**: can also define operation interfaces using ODS framework. interface defined inherits from **OpInterface**. ShapeInferencePass -> FunctionPass, i.e., run on each Function in isolation, inheriting from **mlir::FunctionPass** and override **runOnFunction()**.
