@@ -39,3 +39,8 @@
 * Provide the interfaces for the inliner to hook into. **dialect interface**: a class containing a set of virtual hooks which the dialect can override. In this case, interface is DialectInlinerInterface.
 * **operation interface** -> can be used to mark an operation as being "call-like". for this case, use the CallOpInterface.
 * **Intraprocedural Shape Inference**: can also define operation interfaces using ODS framework. interface defined inherits from **OpInterface**. ShapeInferencePass -> FunctionPass, i.e., run on each Function in isolation, inheriting from **mlir::FunctionPass** and override **runOnFunction()**.
+
+## Tutorial chapter 5: Partial Lowering to Lower-Level Dialects for Optimization
+* **Dialect Conversions**: **A Conversion Target** & **A set of Rewrite Patterns** & **Optional Type Converter**.
+* ConversionTarget: addLegalDialect (legal targets for lowering), addIllegalDialect & addLegalOp (partial lowering).
+* Conversion Patterns: use RewritePatterns to perform the conversion logic. ConversionPatterns diff from RewritePatterns, accept an additional operands parameter containing operands that have been remapped/replaced, for type conversions. 
