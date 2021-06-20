@@ -42,5 +42,16 @@
 
 ## Tutorial chapter 5: Partial Lowering to Lower-Level Dialects for Optimization
 * **Dialect Conversions**: **A Conversion Target** & **A set of Rewrite Patterns** & **Optional Type Converter**.
-* ConversionTarget: addLegalDialect (legal targets for lowering), addIllegalDialect & addLegalOp (partial lowering).
-* Conversion Patterns: use RewritePatterns to perform the conversion logic. ConversionPatterns diff from RewritePatterns, accept an additional operands parameter containing operands that have been remapped/replaced, for type conversions. 
+* **ConversionTarget**: addLegalDialect (legal targets for lowering), addIllegalDialect & addLegalOp (partial lowering).
+* **Conversion Patterns**: use RewritePatterns to perform the conversion logic. ConversionPatterns diff from RewritePatterns, accept an additional operands parameter containing operands that have been remapped/replaced, for type conversions. 
+
+## Tutorial chapter 6: Lowering to LLVM and CodeGeneration
+* The std and affine dialects already provide the set of patterns needed to transform them into LLVM dialect. **transitive lowering**
+* FullConversion, mlir::translateModuleToLLVMIR export to LLVM IR
+* JIT: Setting up a JIT to run the module containing the LLVM dialect can be done using the mlir::ExecutionEngine infrastructure. This is a utility wrapper around LLVM’s JIT that accepts .mlir as input. 
+
+## Tutorail chapter 7: Adding a Composite Type to Toy
+* **Define Type Class**:  The **Type** class in itself acts as a simple wrapper around an internal **TypeStorage** object that is uniqued within an instance of an MLIRContext. When constructing a Type, we are internally just constructing and uniquing an instance of a storage class.
+* When defining a new Type that contains parametric data (e.g. the struct type, which requires additional information to hold the element types), we will need to provide a **derived storage class**.
+* **Exposing to ODS**: After defining a new type, we should make the ODS framework aware of our Type so that we can use it in the operation definitions and auto-generate utilities within the Dialect. 
+* **Parsing and Printing**: At this point we can use our StructType during MLIR generation and transformation, but we can’t output or parse .mlir. For this we need to add support for parsing and printing instances of the StructType. This can be done by overriding the parseType and printType methods on the ToyDialect. 
