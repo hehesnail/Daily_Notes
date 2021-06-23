@@ -233,6 +233,66 @@
     ``` 
     * **ScheduleGetter**: the CreateSchedule impl, call Create, convert and add inputs/outputs, visit body;
     * **ScheduleGetter::CallNode**: 主要使用 relay.backend.lower_call 来进行 impl的选择，该函数定义在 python side， **select_implementation** 完成 op 的选择;
-    * TODO ---> 添加 select_impl分析，同时完成 op定义 -> add_impl -> select by op_strategy whole process.
+    * 在select implementation中首先通过 get_valid_implementations获取当前对应target下所有注册strategy;
+    * 通过调用 fstrategy -> ret op_strategy，注意这里Op对应的**fstrategy**通过op.get_attr("FTVMStrategy")获取，这玩意返回的是个**GenericFunc**，看下GenericFunc其中**CallPacked**定义：
+    ```c++
+    void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
+        auto node = static_cast<const GenericFuncNode*>(get());
+        auto target = Target::Current(true);
+        PackedFunc func;
+
+        if (target.defined()) {
+            for (auto& k : target->GetKeys()) {
+                auto iter = node->dispatch_dict_.find(k);
+                if (iter != node->dispatch_dict_.end()) {
+                    func = iter->second;
+                    break;
+                }
+            }
+        }
+    ``` 
+    注意从中可以看到在target定义的情况下，将从GenericFunc的dispatch_dict_中选取对应平台的实现，那么对于fstrategy而言也会选在对应平台的实现。
+    * 那么剩下的问题就在于 fstrategy何时被注册到op中，以及 其中 dispatch_dict_中何时注册了对应target函数;
+    * **register_strategy**： relay/op/op.py中对应函数，**tvm.ir.register_op_attr(op_name, "FTVMStrategy", fstrategy, level)**， 注意这里将完成把 GenericFunc注册到Op中的;
+    * 对应register_strategy何时被调用？ 其通常那个在op中对应 _xxx.py文件中调用，如dense op在 _nn.py中调用reg.register_strategy("nn.dense", strategy.dense_strategy); 注意这个是将 dense_strategy(GenericFunc)注册进入op的属性中，而同GenericFunc的其他平台实现这之前就已被注册进入 dispatch_dict_中，通过调用GenericFunc的register; 默认的strategy的定义在 relay/op/strategy/generic.py中;
+    ```c++
+    @override_native_generic_func("dense_strategy")
+    def dense_strategy(attrs, inputs, out_type, target):
+        """dense generic strategy"""
+        logger.warning("dense is not optimized for this platform.")
+        strategy = _op.OpStrategy()
+        strategy.add_implementation(
+            wrap_compute_dense(topi.nn.dense),
+            wrap_topi_schedule(topi.generic.schedule_dense),
+            name="dense.generic",
+        )
+        return strategy
+    ``` 
+    * 这里为对应dense_strategy定义的地方，而装饰器将创建名为 **dense_strategy** 的GenericFunc， 并将fdefault设置为这里的dense_strategy;
+    ```c++
+    @dense_strategy.register("cpu")
+    def dense_strategy_cpu(attrs, inputs, out_type, target):
+        """dense x86 strategy"""
+        strategy = _op.OpStrategy()
+        same_type = inputs[0].dtype == inputs[1].dtype == out_type.dtype
+        dtype = inputs[0].dtype
+        u8s8s32 = dtype == "uint8" and inputs[1].dtype == "int8" and out_type.dtype == "int32"
+        print("call the dense_strategy_cpu", attrs, inputs, out_type, target)
+
+        strategy.add_implementation(
+            wrap_compute_dense(topi.x86.dense_nopack),
+            wrap_topi_schedule(topi.x86.schedule_dense_nopack),
+            name="dense_nopack.x86",
+            plevel=5,
+        )
+
+        strategy.add_implementation(
+            wrap_compute_dense(topi.x86.dense_pack),
+            wrap_topi_schedule(topi.x86.schedule_dense_pack),
+            name="dense_pack.x86",
+            plevel=10,
+        )
+    ``` 
+    举个例子在strategy/x86.py中定义了dense_strategy_cpu实现，这里会将通过调用GenericFunc的register将"cpu"作为dispatch_dict的key，dense_strategy_cpu作为对应PackedFunc value添加进入dispatch_dict_中; 至此可以看到合适注册strategy GenericFunc以及对应平台实现，到最中怎么调用到具体target的fstrategy函数，从而返回对应平台的op_strategy.
     * Comments:到这可以看出对于 tvm relay来说，和 TIR 层级不同点在于其计算图组成有很多的 CallNode组成，在使用 relay描述计算时，其对应为Op，而在 optmize, lower等过程中，其通过fuse变换为 FunctionNode，此也可以看作将 graph 划分为多个子图，而每个FunctionNode则会被 lower为对应的 primfunc, 此时主要通过将 FunctionNode中对应 Call选择合适的 Op实现(i.e., schedule)，并且对于 CallNode 添加 inputs/outputs tensors，其实这里是将其转为 TIR 层级的计算图 (Op-Tensor graph).
 * **TODO fuse_ops**
