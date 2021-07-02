@@ -1,4 +1,4 @@
-### CUDA C/C++ Basics
+## CUDA C/C++ Basics
 * **_\_global\_\_**, runs on the device, called from host code
 * **cudaMalloc**, **cudaFree**, **cudaMemcpy** ---> malloc, free, memcpy
 * grid -> block(blockIdx) -> threads(threadIdx)
@@ -12,7 +12,8 @@
 * Report errors: cudaGetLastError, cudaGetErrorString
 * Device Management: cudaGetDeviceCount, cudaSetDevice, cudaGetDevice, cudaGetDeviceProperties.
 
-### CUDA C Programming Guide
+## CUDA C Programming Guide
+### CUDA Runtime
 * **cuda device memory**
   * Besides **cudaMalloc** to allocate linear memory, **cudaMallocPitch** & **cudaMalloc3D** for allocations of 2D & 3D arrays(allocation is padded to meet alignment needs).
   * **Device Memory L2 Access Management**: start with cuda 11.0, compute capability 8.0.  the capability to influence persistence of data in the L2 cache, potentially providing higher bandwidth and lower latency accesses to global memory.
@@ -26,9 +27,42 @@
     * **portable memory**: block of page-locked memory can be used in conjunction with any device in the system.  cudaHostAllocPortable / cudaHostRegisterPortable.
     * **write combining memory**: cudaHostAllocWriteCombined, Write-combining memory frees up the host's L1 and L2 cache resources, making more cache available to the rest of the application. 
     * **mapped memory**: cudaHostAllocMapped, cudaHostRegisterMapped, cudaHostGetDevicePointer; 1). no need to allocate a block in device memory and copy data between this block and the block in host memory; 2).no need to use streams to overlap data transfers with kernel execution;
-  * **asynchronous concurrent execution**:
-    * **streams**: cudaStream_t, a stream is a sequence of commands that execute in order.
-    * cudaMemcpyAsync
-    * cudaDeviceSynchronize, cudaStreamSynchronize, cudaStreamWaitEvent, cudaStreamQuery
-    * for overlapping behavior, see the programming guide.
-    * cudaLaunchHostFunc to lanch the host function callback.
+* **asynchronous concurrent execution**:
+  * **streams**: cudaStream_t, a stream is a sequence of commands that execute in order.
+  * cudaMemcpyAsync
+  * cudaDeviceSynchronize, cudaStreamSynchronize, cudaStreamWaitEvent, cudaStreamQuery
+  * for overlapping behavior, see the programming guide.
+  * cudaLaunchHostFunc to lanch the host function callback.
+* **multi-device system**:
+  * **device infos**: cudaGetDeviceCount(), cudaDeviceProp, cudaGetDeviceProperties()
+  * **device selection**: cudaSetDevice()
+  * **Peer-to-Peer Memory Access**: cudaDeviceCanAccessPeer(), cudaDeviceEnablePeerAccess()
+  * **Peer-to-Peer Memory Copy**: cudaMemcpyPeer(), cudaMemcpyPeerAsync()
+* **unified virtual address space**:
+  * 64 bit application, a single address space is used for the host and all the devices of compute capability 2.0 and higher.
+  * cudaPointerGetAttributes(), cudaMemcpyKind -> cudaMemcpyDefault if copy to/from device which uses unified address space.
+* **Interprocess Communication**:
+  * To share device memory pointers and events across processes, an application must use the Inter Process Communication API.
+  * cudaIpcGetMemHandle() & cudaIpcOpenMemHandle()
+* **Call Stack**:
+  * cudaDeviceGetLimit() & cudaDeviceSetLimit()
+
+### Hardware Implementation
+* **SIMT Arch**
+  * **warps**: the multiprocessor creates, manages, schedules, and executes threads in groups of 32 parallel threads.
+  * Individual threads composing a **warp** start together at the same program address, but they have their own instruction address counter and register state and are therefore free to branch and execute independently.
+  * When a multiprocessor is given one or more thread blocks to execute, it **partitions** them into **warps** and each warp gets scheduled by a **warp scheduler** for execution. 
+  * **Warp divergence**: a warp executes one common instruction at a time, so full efficiency is realized when all 32 threads of a warp agree on their execution path. If threads of a warp diverge via a data-dependent conditional branch, the warp executes each branch path taken, disabling threads that are not on that path. Branch divergence occurs only within a warp.
+  * **avoid warp divergence**: substantial performance improvements can be realized by taking care that the code seldom requires threads in a warp to diverge.
+* **Hardware Multithreading**
+  * The execution context (program counters, registers, etc.) for each warp processed by a multiprocessor is maintained on-chip during the entire lifetime of the warp. 
+  * In particular, each multiprocessor has a set of 32-bit registers that are partitioned among the warps, and a parallel data cache or shared memory that is partitioned among the thread blocks.
+
+### Performance Guidelines
+* **Maximize Utilization** 
+  * **appplication level**: the application should maximize parallel execution between the host, the devices, and the bus connecting the host to the devices, by using asynchronous functions calls and streams. serial workloads to the host; parallel workloads to the devices. 
+  * **device level**:  maximize parallel execution between the multiprocessors of a device.
+  * **multiprocessor level**: maximize parallel execution between the various functional units within a multiprocessor.
+* **Maximize Memory Throughput** 
+* **Maximize Instruction Throughput** 
+* **Minimize Memory Thrashing** 
