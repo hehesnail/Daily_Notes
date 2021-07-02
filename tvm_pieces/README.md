@@ -1,30 +1,20 @@
 # TVM Notes
 
-### *2020.11.17*
+## **2020.11**
 * use *parallel*, *vectorize* to create schedule which accelerate the execution time of operator.
 * Use *split* for splitting the for loop, reorder can change the axis orders, quite like Halide.
 * Identify the the bottleneck is memory bandwidth or computation. vector_add and broadcast_add are all memory-bound element-wise calculation.
 * A good schedule needs to consider multiple performance-related factors together.
-
-### *2020.11.18*
 * for matrix multiplication, *reorder* the sum axis to avoid column based memory access
 * choose the right tiling size to improve the cache effcience, *tile* primitive tile blocks, *fuse* can fuse two axes into one to be further parallelized.
 * The non-continuous write issue is severer than the non-continuous read, so we can first write the results to a local buffer for each sub-matrix computation, and then write them back to the final matrix C.
-
-### *2020.11.19*
 * 可按照优化矩阵乘法的思路，对卷积操作中，宽和高的维度上进行*tile*操作，来提高cache利用率，但随着channel size的增大，性能会下降
 * 仅对宽高维度做*tile*提升有限，采用相同思想对于channel维度也进行*tile*优化，需改变data layout
-
-### *2020.11.24*
 * depthwise conv和普通conv的优化思路相同，区别在于depthwise conv仅需tile单个维度的channel，因其输入输出channel相等同
 * pooling这种 memory-bound 的算子，optimize的方式有限，可使用te.schedule.AutoInlineInjective(sch) 避免重复计算，类似于Halide的中inline的计算方式
-  
-### *2020.11.25*
 * batch normalization 和 pooling的优化方法差不多，也是用AutoInlineInjective使计算全部inline，外层两axis做parallel，而内层使用vectorize优化
 * *TOPI* (TVM Opeartor Invertory) provides numpy-style generic operations and schedules with higher abstractions than TVM. *TOPI* also provides higher level scheduling recipes depending on a given context to generate optimized kernel codes. *TOPI* also provides common neural nets operations such as _softmax_ with optimized schedule. 
 * *TOPI* provide generic functions, different backends have different implementations to optimize the performance, thus should utilize the right backend implementation and schedule.
-
-### *2020.11.26*
 * Schedule primitives: 
     * ***split***: split the specified axis into two axises.
     * ***tile***: help to execute the computation tile by tile over two axises.
@@ -40,8 +30,6 @@
     * tvm.target.register_intrin_rule. 
 
 * *scan* operator to describle the symbolic loop. *s_state*: the placeholder describles the transition state of the scan. *s_init*: how to initialize the first k timesteps. *s_update*: how to update the value at timestep t. The *scan* takes in state placeholder, initial value and update description. Multi-stage scan cell and multiple states.
-
-### *2020.11.28*
 * ***tvm.te.hybrid***: Hybrid programming apis of tvm python package, maps a subset python to HalideIR. So far, it is a text format dedicated to HalideIR phase0. *Funcs:* build, decorate, script, source_to_op. *tvm.te.hybrid* to indicate a function is a hybrid function.
     * Pass tvm data structures: Tensor, Var, Expr .*Imm, tvm.container.Array
     * Tuning: loop annotations (unroll, parallel, vectorize, bind), loop manipulation (split, fuse, reorder)
@@ -53,25 +41,20 @@
     * Array allocation: allocation(shape, type, share/local) to declare an array buffer. Under construction.
     * Thread bind and Assert statement.
 * External Tensor function: use *te.extern* to add an extern array function call. In the extern call, we declare the shape of output tensors. In the second argument we provide the list of inputs.
-
-### *2020.11.29*
 * Auto-tuner: 
     * 1). Define the search space: @autotvm.template, get config object: cfg = autotvm.get_config(), cfg.define_split, cfg.define_reorder etc. then apply the configEntity.
     * 2). Search through the space: RandomTuner, GridSearchTuner, GATuner, XGBTuner. *First*, create a tunning task. *Second*, define how to measure (autotvm.measure_option) the generated code and pick a tuner, build and run two steps. *Finally*, apply history best from teh cache file and check its correctness by autotvm.apply_history_best.
 * Auto-scheduler:
     * Template-based autotvm relies on manual templates to define the search space.auto-scheduler does not require any templates. The auto-scheduler can automatically generate a large search space and find a good schedule in the space.
     * Define the computation and decorate it with @auto_scheduler.register_workload, the auto-scheduler can get the whole computational graph. Create the search task by *tvm.auto_scheduler.create_task* and set parameters for auto-scheduler by *auto_scheduler.TuningOptions*. Run the serach via *auto_scheduler.auto_schedule*. After schedule, can laod the bset schedule from record file by *auto_scheduler.load_best*.
-### *2020.11.30*
 * ***tvm runtime system***: requirements: deployment, debug, link, prototype, expose, experiment.
     * PackedFunc: type-erased function, when call a PackedFunc, it packs the input arguments to TVMArgs on stack, and gets the result back via TVMRetValue. One can register PackedFunc in C++ and calls from python. Limitation of TVMArgs and TVMRetValue: int, float, string, PackedFunc itself, Module for compiled modules, DLTensor* for tensor object exchange, TVM Object to represent any object in IR. PakcedFunc is a universal glue in TVM.
     * Module: the compiled object. User can get the compiled function from Module as PackedFunc.
     * Object: All the language object in the compiler stack is a subclass of Object. Each object contains a string type_key that uniquely identifies the type of object. *ObjectRef* can be viewd as shared_ptr to Object container. Each Object subclass will override this to visit its members.
     * Check packed_func.h for C++ API and c_runtime_api.cc for C API and how to provide callback.
-
-### *2020.11.31*
 * ***tir***: 看了一手tir的python api定义，理清了几点，1). te (tensor expression)中相当多operator的定义和实现是通过import tir中相应的函数，因此可直接通过tir.xxx调用，二者等价；2). 通过简单的溯源，tir 中 class 和 对用 func 的最终都会映射到同一相应 C++ class创建 node；3). tir python中相应的函数使用_ffi_api可以对应到 C++对应的class，比如 tir op.py文件中 def abs(x) 通过调用 _ffi_api.abs(x)得到对应的 expression(PrimExpr). 还需理清整个数据流程.
 
-### *2020.12.23-2021.1.4*
+## **2020.12**
 * ***TVM source code reading***:
     * The tvm runtime system: PackedFunc, Registry, Manager in C++ side and the corresponding class in python _ffi. Also, notice the macros which are prefixed with TVM_REGISTER_XXX
     * Schedule and stage: how to create_schedule, and then obtain each stage, for each stage the corrpresonding schedule pass like tile, split, fuse and so on.
@@ -79,48 +62,38 @@
     * IRVistor and IRMutator, use these to access the AST and modify AST. Many passes are inherited from the Vistor and the Mutator to finish the task.
     * Codegen: when build a module, how to obtain the LLVM IR and then the executatble binary file. Refer to the codegen.cc, codegen_llvm.cc, llvm_module.cc etc. Basiclly, inherited from the Vistor and Mutator, create the LLVM context, module, then utilize the LLVM IRBuilder to generate the function call and the BasicBlock and Instructions in function. After generate the LLVM IR, can utilize the LLVM PassManager to enable the LLVM optimizations. For the executable file, call the SaveToFile method to transform the LLVM IR.
 
-### *2021.1.10*
+## **2021.1**
 * ***Reread the docs for tvm***
     * runtime::Object is one of the primary data structures in TVM runtime besides the runtime::PackedFunc. It is a reference-counted base class with a type index to support runtime type checking and downcasting. 
     * The components in tvm/ir are shared by tvm/relay and tvm/tir, notable ones include IRModule, Type, PassContext and Pass Op.
     * tvm/tir : TIR contains the definition of the low-level program representations. We use tir::PrimFunc to represent functions that can be transformed by TIR passes. Besides the IR data structures, the tir module also defines a set of builtin intrinsics and their attributes via the common Op registry, as well as transformation passes in tir/transform.
     * tvm/te: te name te stands for “tensor expression”. This is a domain-specific language module that allows us to construct tir::PrimFunc variants quickly by writing tensor expressions. Importantly, a tensor expression itself is not a self-contained function that can be stored into IRModule. Instead, it is a fragment of IR that we can stitch together to build an IRModule. te/schedule provides a collection of scheduling primitives to control the function being generated. In the future, we might bring some of these scheduling components to the a tir::PrimFunc itself.
     * Analyze the source code of IR, which offers the unified interface for the Relay and TIR.
-
-### *2021.1.11*
 * ***analyze the TIR structure, especially TIR/IR/expr.h, buffer.h, var.h***
     * detailed info written in notebook, tobe summarized.
-
-### *2021.1.18*
 * ***The TIR structure***
     * 重新扫了下object, objectptr, objectref, 后续又看了下 tir/expr下的一些东西，对于Var产生兴趣，每个Var由其地址所唯一区分，之前被误导了淦，在Allocate, Let, For, LetStmt中是每个Var仅被bind一次，之前看成只在这几个中bind。。。
     * 结合llvm codegen看，这几个Node会维护一个 VarNode* -> llvm::Value* 的var_map表，对于Let, For, LetStmt的Var 基本是通过Make_value得到，Allocate则会调用到 llvm irbuilder 的 alloca 并convert成指针类型，其实这个过程就将抽象的Var 转为了具体的 数 或者 内存指针。
     * 在compute时候，会根据compute传入的参数进行解析，shape被解析为 vector<IterVar> axis 同时从中会获取到 类型为 vector<Var> 的args参数，而计算函数FCompute为函数模板对象，根据args调用，则会得到 类型为PrimExpr body，即内部的计算描述。  
     * 目前来看，tir这块理解最欠缺的是内存管理相关的IR，之后着重分析。
-
-### *2021.1.19*
 * ***TIR Buffer***
     * 看了下TIR中Buffer的管理，因利用IRBuilder将Tensor创建buffer_ptr时出错。其实因为Tensor会在lower的过程中最后转换为Buffer，因此这种行为相当于将lower过程中搞得提前到了Tensor赋值的过程中来，故报错，若非要解决这个问题只能根据Tensor的dtype, shape重新构建Buffer才行。
     * TIR Buffer在 C++端(src/tir/ir/buffer.cc, include/tir/buffer.h) 和 Python端(python/tvm/tir/buffer.py)行为基本一致，因Python Buffer class 直接调用C++ register的类构造函数 以及 成员函数，其中decl_buffer也是直接调用C++端的函数。BufferNode中基本三个member为 Var data -> 指向数据的指针，DataType dtype -> 数据类型 以及 Array<PrimExpr> shape -> buffer的shape大小。那关于Buffer的内存分配，看了下codegen_llvm.cc中，llvm的IRBuilder只有在Allocate Stmt的时候，才会调用 CreateAlloca 即分配内存，故Buffer的内存管理主要还是由 lower的过程当中，适时地插入Allocate Stmt时才完成。那么关于 Store / Load 基本是先获取到 对应Buffer，后利用 llvm IRBuilder 创建指针访问。
     * python端 ir_builder 使更容易的获取buffer元素 ---> BufferVar 类，类构建irbuilder, buffer_var(Var), content_type；通过__setitem__ (emit Store) 和 __getitem__ (emit Load)来创建IR，同时注意 buffer_ptr函数接收一个Buffer对象，将其 data 和 dtype提取并创建BufferVar对象，就可以A[i]这种方式获取Buffer中的元素，免去了很多麻烦。pointer函数根据类型先创建 Var，后创建 BufferVar绑定到刚创建的Var上。allocate函数会直接emit allocate stmt. 
   
-### *2021.2.19*
+## **2021.2 & 3**
 * ***Storage Flatten Pass***
     * Ref [tvm tensor management notes](https://github.com/hehesnail/Boring_code/blob/main/tvm_pieces/tvm_storage.md)
-### *2021.3.7*
 * ***Some notes***
     * Writing a Customized Pass: https://tvm.apache.org/docs/tutorials/dev/low_level_custom_pass.html#sphx-glr-tutorials-dev-low-level-custom-pass-py 
     * 以前还真没注意怎么在 python 端写 tvm lower pass的，基本还是和 cxx side 差不多， python 端更加不灵活吧stmt_functor 中 post_order_visit 获取想 modify 的 IR， stmt_functor.ir_transform进行变换， stmt_functor.substitue替换，将 Pass可通过在 tvm.transform.PassContext 中添加
-    * 从 compile models来看，首先是 relay.frontend.from_xxx， 后创建 graph executor， relay.build_module.create_executor那其实 第一步主要就是解析 不同前端框架 保存模型参数的一个过程，然后匹配成 relay_func 的格式；其中不同前端中的OP(conv, pool)之类的会被的等价转换为 relay 中 op，relay中 build_module过程中调用cxx端的 RelayBuildModule 中 build，后调用  BuildRelay， 其中会创建 graph_codegen 通过  _GraphRuntimeCodegen 创建  GraphRuntimeCodegenModule 调用其中 Codegen方法，在 visit 其中 CallNode时候，_CompileEngineLower，其中会根据 OpStrategy完成对不同OP实现的选择
-### *2021.3.13*
+    * 从 compile models来看，首先是 relay.frontend.from_xxx， 后创建 graph executor， relay.build_module.create_executor那其实 第一步主要就是解析 不同前端框架 保存模型参数的一个过程，然后匹配成 relay_func 的格式；其中不同前端中的OP(conv, pool)之类的会被的等价转换为 relay 中 op，relay中 build_module过程中调用cxx端的 RelayBuildModule 中 build，后调用  BuildRelay， 其中会创建 graph_codegen 通过  _GraphRuntimeCodegen 创建  GraphRuntimeCodegenModule 调用其中 Codegen方法，在 visit 其中 CallNode时候，_CompileEngineLower，其中会根据 OpStrategy完成对不同OP实现的选择  
 * ***Tensor IR First Impression***
     * 粗略地看了下RFC(https://discuss.tvm.apache.org/t/rfc-tensorir-a-schedulable-ir-for-tvm/7872)上的讨论, TensorIR是TIR可优化的增强版, 主要提出 Block statement structure来warp IR, Block会作为最小的scheduling and tensorization的单元，其中包含 Iter Vars, Block读写region, allocated buffer 以及 body stmt. 从这点来看，是在已有的TIR的基础上新增了更加粗粒度的访问块，在Block unit中附加上schedule所需的信息，从而实现直接对于TIR的schedule；
     * 几点好处: 1). schedule直接作用在 TIR, 而不需要通过在schedule tree调度后拼接 stmt形成 TIR，TF/PyTorch/ONNX -> Relay -> TIR -> schedule -> TIR -> scheudle -> TIR -> C++/CUDA; 2). 更加灵活的描述，相对于TE; 3). 更好地支持 memory hierarchy 以及 execution hierarchy; 4). 对于 tensorization 支持更加灵活; 5). 可以在每次schedule对于IR进行验证
     * 目前来看, 关于Block 的 PR已经提了;
-### *2021.3.15 & 16 & 17*
 * ***Storage Rewrite Pass***
     * Ref [tvm tensor management notes](https://github.com/hehesnail/Boring_code/blob/main/tvm_pieces/tvm_storage.md)
-### *2021.3.23 -> 28*
 * ***Schedule Lang***  
     *  Schedule & Stage creation ---> Done
     *  ScheduleOps: main process to obtain body ---> Done
@@ -155,18 +128,14 @@
           * 2). 根据 num_common_loop将 main_nest分为 common, reduce，并在reduce body拼接为provide，后和 init相拼后合入 common中； common->init->reduce->provide;
         * **If no reduce axis**: 这个相对简单，MakeProvide (ProducerStore)获取 provide body, 和 main_nest一拼就完事；
         * 最后将 ComputeStmt中的 IterVar 替换为 PrimExpr.
-
-### *2021.3.29*
 * ***Unroll_loop & Vectorize_loop***
     * unroll_loop: Done 
     * vectorize_loop: Done 
 
-### *2021.4.3 & 4.4*
+## **2021.4**
 * ***InjectDoubleBuffer***
     * 首先搞清楚，啥时候才能 double_buffer，看 Pass里面，double_buffer_scope必须在一个 for 循环中；这时候看 scheduleops 以及 schedule_postproc_to_primfunc的时候，看不出什么端倪，因为正常 MakePipline的时候；即使 set_stage 为 double_buffer_scope，此 AttrStmt必不在循环中，之后看例子，是因为 double_buffer这玩意，必须配合到 compute_at一起用，attach 到某个循环轴上，也会在 loop中。另一种情形就是使用 IRBuilder 在 for 中 allocate 并 set 对应 buffer_var 为 double_buffer_scope, emit成 extern_op
     * Finish, not summarized.
-
-### *2021.4.19*
 * ***Auto-schedule Get Started***
     * Typical Flow: 
          * Describle computation rule(**register_workload**)
@@ -179,11 +148,15 @@
          * Brief impression, the core things are: search_task.py, search_policy,py, cost_model/cost_model.py & xgb_model.py, measure.py.
          * Next things: follow the workflow, read original paper and analyze the source codes from python to cxx side.
 
-### *2021.4 & 5*
+## **2021.4 & 5**
+
 * Auto Schedule Summary Notes: [auto_schedule notes](https://github.com/hehesnail/Boring_code/blob/main/tvm_pieces/auto_schedule_notes.md)
 * TVM Tensor Management Notes: [tvm tensor management notes](https://github.com/hehesnail/Boring_code/blob/main/tvm_pieces/tvm_storage.md)
 
-### *2021.6*
+## **2021.6 & 7**
+
+### **Relay**
+
 * Relay paper notes -> TODO
 * Workflow
 * **function.py & build_module.py & build_module.cc**
@@ -296,3 +269,20 @@
     举个例子在strategy/x86.py中定义了dense_strategy_cpu实现，这里会将通过调用GenericFunc的register将"cpu"作为dispatch_dict的key，dense_strategy_cpu作为对应PackedFunc value添加进入dispatch_dict_中; 至此可以看到合适注册strategy GenericFunc以及对应平台实现，到最中怎么调用到具体target的fstrategy函数，从而返回对应平台的op_strategy.
     * Comments:到这可以看出对于 tvm relay来说，和 TIR 层级不同点在于其计算图组成有很多的 CallNode组成，在使用 relay描述计算时，其对应为Op，而在 optmize, lower等过程中，其通过fuse变换为 FunctionNode，此也可以看作将 graph 划分为多个子图，而每个FunctionNode则会被 lower为对应的 primfunc, 此时主要通过将 FunctionNode中对应 Call选择合适的 Op实现(i.e., schedule)，并且对于 CallNode 添加 inputs/outputs tensors，其实这里是将其转为 TIR 层级的计算图 (Op-Tensor graph).
 * **TODO fuse_ops**
+* **TODO memory plan**
+* **TODO IR Infra**
+* **TODO Ops defs**
+* **TODO QNN Dialect**
+* **TODO VM Impl**
+* **TODO xla converter**
+* **TODO torchscript converter**
+
+### **VTA Stack**
+
+* **TODO VTA paper reading notes**
+* **TODO VTA Docs**
+* **TODO VTA Runtime**
+* **TODO VTA Passes**
+
+### **2021.8**
+* **TODO CUDA CodeGen Support** 
