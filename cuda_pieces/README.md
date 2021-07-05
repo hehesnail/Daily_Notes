@@ -62,7 +62,10 @@
 * **Maximize Utilization** 
   * **appplication level**: the application should maximize parallel execution between the host, the devices, and the bus connecting the host to the devices, by using asynchronous functions calls and streams. serial workloads to the host; parallel workloads to the devices. 
   * **device level**:  maximize parallel execution between the multiprocessors of a device.
-  * **multiprocessor level**: maximize parallel execution between the various functional units within a multiprocessor.
+  * **multiprocessor level**: 
+    * maximize parallel execution between the various functional units within a multiprocessor. 
+    * The most common reason a warp is not ready to execute its next instruction is that the instruction's input operands are not available yet.
+    * Another reason a warp is not ready to execute its next instruction is that it is waiting at some memory fence or synchronization point. 
 * **Maximize Memory Throughput** 
 * **Maximize Instruction Throughput** 
 * **Minimize Memory Thrashing** 
