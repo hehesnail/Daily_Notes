@@ -270,7 +270,43 @@
     * Comments:到这可以看出对于 tvm relay来说，和 TIR 层级不同点在于其计算图组成有很多的 CallNode组成，在使用 relay描述计算时，其对应为Op，而在 optmize, lower等过程中，其通过fuse变换为 FunctionNode，此也可以看作将 graph 划分为多个子图，而每个FunctionNode则会被 lower为对应的 primfunc, 此时主要通过将 FunctionNode中对应 Call选择合适的 Op实现(i.e., schedule)，并且对于 CallNode 添加 inputs/outputs tensors，其实这里是将其转为 TIR 层级的计算图 (Op-Tensor graph).
 * **TODO fuse_ops**
 * **TODO memory plan**
-* **TODO IR Infra**
+* **IR Infra**
+  * Defs in relay/ir/expr.cc, ir/expr.cc
+  * 基础 Expr类型为 tvm::RelayExpr，继承自BaseExpr，同 PrimExpr平级，主要区别在于RelayExpr的类型及类型推断方式，此点在论文中提过。其class定义如下：
+  ```c++
+    class RelayExprNode : public BaseExprNode {
+        public:
+        /*!
+        * \brief Stores the result of type inference(type checking).
+        * \note This can be undefined before type inference.
+        *       This value is discarded during serialization.
+        */
+        mutable Type checked_type_ = Type(nullptr);
+        /*!
+        * \return The checked_type
+        */
+        inline const Type& checked_type() const;
+        ...
+    }
+  ```
+  注意其中的Type以及checked_type用于类型推断，而PrimExpr中仅为runtime是DataType就足够，因其针对POD Value。
+  而函数类型的父类，BaseFunc则继承自RelayExpr，这是因为函数类型并不是POD Value，其为Relay类型系统中新增加的类型，需继承子RelayExpr以提供类型检查。后续 RelayFunc和PrimFunc均继承子BaseFunc。
+  整体的继承关系图如下：
+    <div align="center">
+    <img src="https://github.com/hehesnail/Boring_code/blob/main/imgs/relay_ir_infra.png" width="60%" height="60%" /> 
+    </div>
+
+  * **ConstantNode**: constant tensor，内部有runtime::NDArray类型数据成员data，当data->ndim为0时，即rank-0 tensor其对应常量;
+  * **TupleNode**： relay为支持多输出引入类型，成员变量 tvm::Array<relay::Expr> fields;
+  * **VarNode**：变量类型，用于let expr中，其语义类似于tir中tvm.Var;每个Var仅被bind一次且imutable，成员 Id vid 及 Type type_annotation;
+  * **CallNode**: relay中为支持神经网络中op调用引入的类型，在计算图中即为op，其成员变量： 1). Expr op，这个op可以是tvm::Op(primitive opeartors)，也可为Function(fuse_op后均为function)等; 2). tvm::Array<relay::Expr> args，输入参数; 3). Attrs attrs，额外attributes; 4). tvm::Array::<Type> type_args;
+  * **LetNode**: Let可将程序变换为 A-normal形式，其中每个表达式均对应一个let binding，每个let可被看作计算图中一个 operator node， 其对应 Var var即待绑定变量，Expr value绑定变量值，Expr body;
+  * **IfNode**: 条件表达式，跟TIR中If不同之处在于，if会求值为对应分支的结果，更类似与 c 中三元表达式;其成员变量 Expr cond, Expr true_branch, Expr false_branch;
+  * **TupleGetItemNode**: 从tuple类型中获取指定index值， Expr tuple，int index;
+  * **RefCreateNode**：创建对于初始值的引用，其成成员变量为 Expr value(initial_value of ref);
+  * **RefReadNode**: 获取Ref中值，Expr ref;
+  * **RefWriteNode**: Set value of ref, whole expression evaluates to an Empty Tuple; 成员变量为 Expr ref（ref expression）， Expr value，待set值;
+  * **TempExprNode**： temporary expression基类，TempExprs主要用于rewriting pass如layout，type transform中间结果的定义; TempExprNode子类使pattern match时可使用特定类型的TempExpr并在expression rewriting时使用;
 * **TODO Ops defs**
 * **TODO QNN Dialect**
 * **TODO VM Impl**
