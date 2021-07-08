@@ -132,12 +132,16 @@ xla_call_p.def_impl(_xla_call_impl)
 
 _xla_callable ---> 其为xla转换的核心函数，先通过 trace_to_jaxpr_final 来trace python函数并获取到最终转换后的jaxpr，并通过xla_bridge模块中对应函数创建XlaBuilder，后使用jaxpr_subcomp将jaxpr转换为对应的HLO IR，此时对应的HLO指令将插在对应XlaBuilder中并通过Build创建HLO计算图。此时在xla中translation table中查询对应jaxpr.eqns中primitive对应的规则，对应规则在lax中注册，最终调用backend_compile通过对应平台的XLA Compiler编译对应HLO Graph，_xla_callable被cache装饰器装饰，以避免对同样的函数重复编译。
 
-## xla to target compiler
-# XLA Ops
+## xla_ops & xla_builder & compiler
+
+<div align="center">
+<img src="https://github.com/hehesnail/Boring_code/blob/main/imgs/xla_while.png" width="50%" height="50%" /> 
+</div>
+上图为xla中while op对应的流程，从左到右依次为xla op定义，XlaBuilder插入对应op的过程，以及对应CpuCompiler处理while的流程。这里选择while op进行说明，因其为control flow类语句，主要探明xla compiler如何处理控制流。可以看到对应XlaBuilder中对于While其输入的cond以及body类型需为XlaComputation，调用XlaBuilder build获取，因此其对应XlaComputation和此XlaBuilder不同。同时其会调用AddCalledComputation将其添加到embedded_中，注意RunBackend中首先会对embedded_中进行处理，因此在CpuCOmpiler IREmitter时处理while时，cond/body对应的llvm function已存在llvm module中。而HandleWhile，主要调用EmitGlobalCall分别调用condition/body对应的函数，同时while中判断语句生成，则是通过load condition func call对应的返回值，并创建比较语句ICmpNE获取。
+
 # 总结
 ## 表示能力
 ## 技术路线
-## HikDSL潜在扩展
 
 # References
 
