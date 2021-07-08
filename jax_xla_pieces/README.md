@@ -50,7 +50,7 @@ JAX添加Primitive方法：
 tensorflow的计算图中粒度非常小，一个常见的网络为存在大量的op相连，存在大量不必要的访存，因此需要对其进行优化，而XLA则完成了此功能。整体过程如下图所示：
 
 <div align="center">
-<img src="https://github.com/hehesnail/Boring_code/blob/main/imgs/tf_to_xla.png" width="60%" height="60%" /> 
+<img src="https://github.com/hehesnail/Boring_code/blob/main/imgs/tf_to_xla.png" width="100%" height="100%" /> 
 </div>
 
 XLA：Accelerated Linear Algebra Compiler，XLA目标：
@@ -68,7 +68,7 @@ XLA 的输入语言称为“HLO IR”或仅为“HLO”(High Level Optimizer)，
 XLA 接受在 HLO 中定义的计算图并将其编译为适用于各种架构的机器指令。XLA 采用模块化设计，可以轻松融入其他后端以针对某些新颖的硬件架构。TensorFlow 源代码树中包含适用于 x64 和 ARM64 架构的 CPU 后端，以及 NVIDIA GPU 后端。
 
 <div align="center">
-<img src="https://github.com/hehesnail/Boring_code/blob/main/imgs/xla.png" width="40%" height="40%" /> 
+<img src="https://github.com/hehesnail/Boring_code/blob/main/imgs/xla.png" width="30%" height="30%" /> 
 </div>
 
 如上图所示，XLA 提供了多种与目标无关的优化和分析过程（例如 CSE）、与目标无关的运算融合，以及用于为计算分配运行时内存的缓冲区分析。完成与目标无关的步骤之后，XLA 会将 HLO 计算发送到后端。后端可以执行进一步的 HLO 级优化，而此时将考虑目标特定的信息和需求。最后针对特定目标生成代码。XLA 所含的 CPU 和 GPU 后端使用 LLVM 进行低级 IR、优化和代码生成。这些后端发出有效表示 XLA HLO 计算所需的 LLVM IR，然后调用 LLVM 以从此 LLVM IR 中发出原生代码。从提供的新增硬件的链接来看，当前主要基于LLVM来扩展新的硬件，非LLVM方式则工作量最大。
