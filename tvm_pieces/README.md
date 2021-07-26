@@ -307,10 +307,12 @@
   * **RefReadNode**: 获取Ref中值，Expr ref;
   * **RefWriteNode**: Set value of ref, whole expression evaluates to an Empty Tuple; 成员变量为 Expr ref（ref expression）， Expr value，待set值;
   * **TempExprNode**： temporary expression基类，TempExprs主要用于rewriting pass如layout，type transform中间结果的定义; TempExprNode子类使pattern match时可使用特定类型的TempExpr并在expression rewriting时使用;
-* **TODO Ops defs**
+* **Ops defs**
+  * **Op Attrs**: Ref to [add relay operator](https://tvm.apache.org/docs/dev/relay_add_op.html)
+  * **Op 注册**: 机制在上述已经描述;
+  * **Pattern Match**：用于匹配relay graph中sub-graph并完成graph rewrite，主要用在pass中如fuse ops等，应用pattern_rewrite以及pattern_partition; Ref to [pattern mathc](https://tvm.apache.org/docs/langref/relay_pattern.html)
 * **TODO QNN Dialect**
 * **TODO VM Impl**
-* **TODO xla converter**
 * **TODO torchscript converter**
 
 ### **VTA Stack**
