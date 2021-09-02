@@ -26,15 +26,17 @@
   *  In MLIR, there are two main classes related to operations: **Operation** and **Op**. The **Operation** class is used to generically model all operations. It is ‘opaque’, in the sense that it does not describe the properties of particular operations or types of operations. Instead, the Operation class provides a general API into an operation instance. On the other hand, each **specific type** of operation is represented by an **Op derived class**. For instance ConstantOp represents a operation with zero inputs, and one output, which is always set to the same value. **Op** derived classes act as **smart pointer wrapper** around a Operation*, provide operation-specific accessor methods, and type-safe properties of operations. A side effect of this design is that we always pass around **Op derived classes “by-value”**, instead of by reference or pointer (passing by value is a common idiom in MLIR and applies similarly to attributes, types, etc). Given a generic Operation* instance, we can always **get a specific Op instance** using LLVM’s **casting** infrastructure.
   * **Operation Definition Specification(ODS) framework**: Facts regarding an operation are specified concisely into a TableGen record, which will be expanded into an equivalent mlir::Op C++ template specialization at compile time. Using the ODS framework is the desired way for defining operations in MLIR given the simplicity, conciseness, and general stability in the face of C++ API changes.
   * The Tablegen and ODS framework make it much easier to define the dialects and operations.
+  * ODS的从其他项目来看还是挺高，起码对于Operation的声明可以写在这里.
 
 ## Tutorial chapter 3: High-level Language-Specific Analysis and Transformation
 * MLIR Generic DAG Rewriter 
 * Two ways to impl pattern-match transformations: 1). Imperative, C++ pattern-match and rewrite; 2). Declarative, rule-based pattern-match and rewrite using table-driven Declarative Rewrite Rules (DRR) ---> Operations defined using ODS.
-* C++, inherits from mlir::OpRewritePattern, matchAndRewrite method.
-* DDR, class Pattern<dag sourcePattern, list<dag\> resultPatterns, list<dag\> additionalConstraints = [], dag benifhitsAdded = (addBenifit 0)\>; fill the basic template with specified rules.  
+* C++, inherits from **mlir::OpRewritePattern, matchAndRewrite method**.
+* DDR, class Pattern<dag sourcePattern, list<dag\> resultPatterns, list<dag\> additionalConstraints = [], dag benifhitsAdded = (addBenifit 0)\>; fill the basic template with specified rules.
+* DDR主要不熟悉语法，从开源项目的情况来看，用**mlir::OpRewritePattern**的更多，DDR不是非常灵活，针对规则明确的好点。Pattern Match DAG Rewriter更适合于local optimization，获取的信息为局部子图的信息，基于此可进行优化。  
 
 ## Tutorial chapter 4: Enabling Generic Transformation with Interfaces
-* **Core idea**: make the MLIR infrastructure as extensible as the representation, thus Interfaces provide a generic mechanism for dialects and operations to provide information to a transformation or analysis.
+* **Core idea**: make the MLIR infrastructure as extensible as the representation, thus **Interfaces provide a generic mechanism** for dialects and operations to provide information to a **transformation or analysis**.
 * Shape inference for toy lang: based on function specialization, inline all of func calls and perform intra-procedural shape propagation.
 * Provide the interfaces for the inliner to hook into. **dialect interface**: a class containing a set of virtual hooks which the dialect can override. In this case, interface is DialectInlinerInterface.
 * **operation interface** -> can be used to mark an operation as being "call-like". for this case, use the CallOpInterface.

@@ -311,7 +311,6 @@
   * **Op Attrs**: Ref to [add relay operator](https://tvm.apache.org/docs/dev/relay_add_op.html)
   * **Op 注册**: 机制在上述已经描述;
   * **Pattern Match**：用于匹配relay graph中sub-graph并完成graph rewrite，主要用在pass中如fuse ops等，应用pattern_rewrite以及pattern_partition; Ref to [pattern mathc](https://tvm.apache.org/docs/langref/relay_pattern.html)
-* **TODO QNN Dialect**
 * **TODO VM Impl**
 * **TODO torchscript converter**
 
