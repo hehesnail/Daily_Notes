@@ -38,9 +38,18 @@
 ## Tutorial chapter 4: Enabling Generic Transformation with Interfaces
 * **Core idea**: make the MLIR infrastructure as extensible as the representation, thus **Interfaces provide a generic mechanism** for dialects and operations to provide information to a **transformation or analysis**.
 * Shape inference for toy lang: based on function specialization, inline all of func calls and perform intra-procedural shape propagation.
-* Provide the interfaces for the inliner to hook into. **dialect interface**: a class containing a set of virtual hooks which the dialect can override. In this case, interface is DialectInlinerInterface.
-* **operation interface** -> can be used to mark an operation as being "call-like". for this case, use the CallOpInterface.
+* Provide the interfaces to hook into. **dialect interface**: a class containing a set of virtual hooks which the dialect can override. 
+* **operation interface** -> provide a more refined granularity of information that is specific and core to a single operation. 
+* Process for supporting inline:
+  * **DialectInlinerInterface** for inlining
+  * toy.generic_call be aware for inliner, use operation interface **CallOpInterface** mark op call-like.
+  * add CastOp to cast shape of function ret, along with **CastOpInterface**.
+  * override materializeCallConversion hook in dialect interface.
 * **Intraprocedural Shape Inference**: can also define operation interfaces using ODS framework. interface defined inherits from **OpInterface**. ShapeInferencePass -> FunctionPass, i.e., run on each Function in isolation, inheriting from **mlir::FunctionPass** and override **runOnFunction()**.
+* Process for supporting ShapeInfer:
+  * use ODS to define the ShapeInference operation interface.
+  * add ShapeInferenceOpInterface to defined ops
+  * implement ShapeInferencePass inherits from **mlir::FunctionPass** and override the runOnFunction() method.
 
 ## Tutorial chapter 5: Partial Lowering to Lower-Level Dialects for Optimization
 * **Dialect Conversions**: **A Conversion Target** & **A set of Rewrite Patterns** & **Optional Type Converter**.
