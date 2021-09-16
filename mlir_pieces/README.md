@@ -53,8 +53,13 @@
 
 ## Tutorial chapter 5: Partial Lowering to Lower-Level Dialects for Optimization
 * **Dialect Conversions**: **A Conversion Target** & **A set of Rewrite Patterns** & **Optional Type Converter**.
-* **ConversionTarget**: addLegalDialect (legal targets for lowering), addIllegalDialect & addLegalOp (partial lowering).
-* **Conversion Patterns**: use RewritePatterns to perform the conversion logic. ConversionPatterns diff from RewritePatterns, accept an additional operands parameter containing operands that have been remapped/replaced, for type conversions. 
+* **Convert lowering pass**:
+  * define the ConversionTarget.  
+  * addLegalDialect (legal targets for lowering)
+  * addIllegalDialect, define Toy dialect as Illegal.
+  * addLegalOp, mark PrintOp as legal to skip, partial lowering.
+* **Conversion Patterns**: use RewritePatterns to perform the conversion logic. ConversionPatterns differ from RewritePatterns, accept an additional operands parameter containing operands that have been remapped/replaced, for type conversions. 
+* **Partial Lowering**: applyPartialConversion
 
 ## Tutorial chapter 6: Lowering to LLVM and CodeGeneration
 * The std and affine dialects already provide the set of patterns needed to transform them into LLVM dialect. **transitive lowering**
