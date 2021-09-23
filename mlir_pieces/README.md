@@ -68,6 +68,7 @@
 
 ## Tutorail chapter 7: Adding a Composite Type to Toy
 * **Define Type Class**:  The **Type** class in itself acts as a simple wrapper around an internal **TypeStorage** object that is uniqued within an instance of an MLIRContext. When constructing a Type, we are internally just constructing and uniquing an instance of a storage class.
-* When defining a new Type that contains parametric data (e.g. the struct type, which requires additional information to hold the element types), we will need to provide a **derived storage class**.
+* **Define the Storage Class**: When defining a new Type that contains parametric data (e.g. the struct type, which requires additional information to hold the element types), we will need to provide a **derived storage class**.
+* Define the class that interface with, i.e., **StructType** (inherits from Type::TypeBase), after class definition, add StructType to ToyDialect in initialize method. 
 * **Exposing to ODS**: After defining a new type, we should make the ODS framework aware of our Type so that we can use it in the operation definitions and auto-generate utilities within the Dialect. 
 * **Parsing and Printing**: At this point we can use our StructType during MLIR generation and transformation, but we can’t output or parse .mlir. For this we need to add support for parsing and printing instances of the StructType. This can be done by overriding the parseType and printType methods on the ToyDialect. 
