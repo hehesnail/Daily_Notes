@@ -9,7 +9,7 @@
 <img src="https://github.com/hehesnail/Boring_code/blob/main/imgs/mlir_intuition.PNG" width="70%" height="70%" /> 
 </div>
 
-## Tutorial chapter 2: Emitting Basic MLIR  
+## Toy Tutorial chapter 2: Emitting Basic MLIR  
   * MLIR is designed to be a completely extensible infrastructure; there is no closed set of attributes (think: constant metadata), operations, or types. MLIR supports this extensibility with the concept of **Dialects** . **Dialects** provide a grouping mechanism for abstraction under a unique namespavce. 
   * **Operations**: core unit of abstraction and computation, similar in many ways to LLVM instructions. Operations can have application-specific semantics and can be used to represent all of the core IR structures in LLVM: instructions, globals (like functions), modules, etc.
   * **Concepts of Operation**: 
@@ -28,14 +28,14 @@
   * The Tablegen and ODS framework make it much easier to define the dialects and operations.
   * ODS的从其他项目来看还是挺高，起码对于Operation的声明可以写在这里.
 
-## Tutorial chapter 3: High-level Language-Specific Analysis and Transformation
+## Toy Tutorial chapter 3: High-level Language-Specific Analysis and Transformation
 * MLIR Generic DAG Rewriter 
 * Two ways to impl pattern-match transformations: 1). Imperative, C++ pattern-match and rewrite; 2). Declarative, rule-based pattern-match and rewrite using table-driven Declarative Rewrite Rules (DRR) ---> Operations defined using ODS.
 * C++, inherits from **mlir::OpRewritePattern, matchAndRewrite method**.
 * DDR, class Pattern<dag sourcePattern, list<dag\> resultPatterns, list<dag\> additionalConstraints = [], dag benifhitsAdded = (addBenifit 0)\>; fill the basic template with specified rules.
 * DDR主要不熟悉语法，从开源项目的情况来看，用**mlir::OpRewritePattern**的更多，DDR不是非常灵活，针对规则明确的好点。Pattern Match DAG Rewriter更适合于local optimization，获取的信息为局部子图的信息，基于此可进行优化。  
 
-## Tutorial chapter 4: Enabling Generic Transformation with Interfaces
+## Toy Tutorial chapter 4: Enabling Generic Transformation with Interfaces
 * **Core idea**: make the MLIR infrastructure as extensible as the representation, thus **Interfaces provide a generic mechanism** for dialects and operations to provide information to a **transformation or analysis**.
 * Shape inference for toy lang: based on function specialization, inline all of func calls and perform intra-procedural shape propagation.
 * Provide the interfaces to hook into. **dialect interface**: a class containing a set of virtual hooks which the dialect can override. 
@@ -51,7 +51,7 @@
   * add ShapeInferenceOpInterface to defined ops
   * implement ShapeInferencePass inherits from **mlir::FunctionPass** and override the runOnFunction() method.
 
-## Tutorial chapter 5: Partial Lowering to Lower-Level Dialects for Optimization
+## Toy Tutorial chapter 5: Partial Lowering to Lower-Level Dialects for Optimization
 * **Dialect Conversions**: **A Conversion Target** & **A set of Rewrite Patterns** & **Optional Type Converter**.
 * **Convert lowering pass**:
   * define the ConversionTarget.  
@@ -61,14 +61,66 @@
 * **Conversion Patterns**: use RewritePatterns to perform the conversion logic. ConversionPatterns differ from RewritePatterns, accept an additional operands parameter containing operands that have been remapped/replaced, for type conversions. 
 * **Partial Lowering**: applyPartialConversion
 
-## Tutorial chapter 6: Lowering to LLVM and CodeGeneration
+## Toy Tutorial chapter 6: Lowering to LLVM and CodeGeneration
 * The std and affine dialects already provide the set of patterns needed to transform them into LLVM dialect. **transitive lowering**
 * FullConversion, mlir::translateModuleToLLVMIR export to LLVM IR
 * JIT: Setting up a JIT to run the module containing the LLVM dialect can be done using the mlir::ExecutionEngine infrastructure. This is a utility wrapper around LLVM’s JIT that accepts .mlir as input. 
 
-## Tutorail chapter 7: Adding a Composite Type to Toy
+## Toy Tutorail chapter 7: Adding a Composite Type to Toy
 * **Define Type Class**:  The **Type** class in itself acts as a simple wrapper around an internal **TypeStorage** object that is uniqued within an instance of an MLIRContext. When constructing a Type, we are internally just constructing and uniquing an instance of a storage class.
 * **Define the Storage Class**: When defining a new Type that contains parametric data (e.g. the struct type, which requires additional information to hold the element types), we will need to provide a **derived storage class**.
 * Define the class that interface with, i.e., **StructType** (inherits from Type::TypeBase), after class definition, add StructType to ToyDialect in initialize method. 
 * **Exposing to ODS**: After defining a new type, we should make the ODS framework aware of our Type so that we can use it in the operation definitions and auto-generate utilities within the Dialect. 
 * **Parsing and Printing**: At this point we can use our StructType during MLIR generation and transformation, but we can’t output or parse .mlir. For this we need to add support for parsing and printing instances of the StructType. This can be done by overriding the parseType and printType methods on the ToyDialect. 
+
+## MLIR Lang Ref
+* MLIR -> graph-like data structure of nodes(Operations),and edges(Values). Value is the result of exactly one Operation or Block argument.
+* Operations -> Blocks -> Regions. Operations may also contain regions, can represent different concepts.
+* Define the syntanx of Opeartions, Blocks.
+* **Operations**: describle many different levels of abstractions and computations, contain zero or more results/operands/attributes/successors/regions.
+* **Blocks**: a list of operations, start with ^, take a list of block arguments, notated in a function-like way.
+* Regions: A region is an ordered list of MLIR Blocks. Regions do not have a name or an address, only the blocks contained in a region do. Regions must be contained within operations and have no type or attributes. function body is an example of region.
+* **SSACFG regions**: control flow semantics of a region is indicated by RegionKind::SSACFG . Informally, these regions support semantics where operations in a region ‘execute sequentially’. 
+* **Graph regions**: graph-like semantics in a region is indicated by RegionKind::Graph . Graph regions are appropriate for concurrent semantics without control flow, or for modeling generic directed graph data structures.
+* **Attributes**: the mechanism for specifying constant data on operations in places where a variable is never allowed. Each operation has an attribute dictionary, which associates a set of attribute names to attribute values. 
+
+## Understanding the IR Structure
+* **Traversing the IR Nesting**
+  * Opeartion -> Regions, Regions -> Blocks, Blocks -> Opeartions
+  * printOperation
+    * op->getName, op->getAttrs, op->getNumRegions, op->getRegions etc.
+  * printRegion
+    * region->getBlocks
+  * printBlock
+    * block->getNumArguments, block->getNumSuccessors, block->getOperations
+* **IR traversal methods**
+  * **filtered iterator**: getOps<OpTy\>()
+  * **Walkers**: walk() helper on Operation, Block, Region; argument: callback method, ret WalkResult::interrupt() value to stop walk.
+* **Traversing the def-use chains**:
+  * relation -> link Value with its users. Value: BlockArgument or res of one Operation. 
+  * The users of a Value are Operations, through their arguments: each Operation argument references a single Value.
+  * **get producers**: op->getOperands() --> operand->getDefiningOp or operand.cast<BlockArgument\>. operand here is Value.
+  * **get users**: op->getResults() --> result.use_empty(), result.hasOneUse(), result.getUses().begin()/end(), result.getUsers(). result here is Value, getUsers() ret is Operation.
+
+## Tutorials -> creating a dialect
+* Mainly about how to configure cmake files for a mlir project.
+* **TableGen targets**: 
+  * **add_mlir_dialect** to declare the dialect for dialect ods files. 
+  * For transforms.td files, **mlir_tablegen** & **add_public_tablegen_target** since result another 'IncGen' target.
+* **Library targets**:
+  * Each library is typically declared with **add_mlir_dialect_library()**
+  * dialect libs depends on: 
+    1. generated header files from TableGen, specified via **DEPENDS**;
+    2. **LINK_LIBS** for specifing linkage to MLIR libraries, also other dialect library.
+    3. **LINK_COMPONENTS** for specifing linkage to LLVM libraries.
+* **Conversion**:
+  * decompose the conversions with conversion passess.
+  * **add_mlir_conversion_libarary** to decalre each conversion, fill the **ADDITIONAL_HEADER_DIRS** & **LINK_LIBS** if needed.
+
+## Tutorials -> add mlir graph rewrite
+* Mainly about how to define rewrite using patterns as well as using a graph walker.
+* **patterns + rewrite engine** is preferred.
+* **TableGen patterns**: define the pattern, DAG-DAG, source pattern args can be used in result pattern. for more advance pattern, can use native code fallback method and add c++ funcion to perform replacement. Then **register** the pattern.
+* **Simple C++ matchAndRewrite style specs**: impl pattern function, add it to pattern set via **populateRewrites**.
+* **Function-style canonicalization**: specify "let hasCanonicalizeMethod = 1" for operation, then implement canonicalize method.
+* **General c++ RewritePattern specs**: Inherits from RewritePattern, implement match/rewrite, or matchAndRewrite, also add this pattern to RewritePatternSet.
