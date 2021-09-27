@@ -123,4 +123,28 @@
 * **TableGen patterns**: define the pattern, DAG-DAG, source pattern args can be used in result pattern. for more advance pattern, can use native code fallback method and add c++ funcion to perform replacement. Then **register** the pattern.
 * **Simple C++ matchAndRewrite style specs**: impl pattern function, add it to pattern set via **populateRewrites**.
 * **Function-style canonicalization**: specify "let hasCanonicalizeMethod = 1" for operation, then implement canonicalize method.
-* **General c++ RewritePattern specs**: Inherits from RewritePattern, implement match/rewrite, or matchAndRewrite, also add this pattern to RewritePatternSet.
+* **General C++ RewritePattern specs**: Inherits from RewritePattern, implement match/rewrite, or matchAndRewrite, also add this pattern to RewritePatternSet.
+
+## Dialect Conversion
+* **Dialect conversion framework**:
+  * a conversion target
+  * a set of rewrite patterns
+  * a type converter(optional)
+* **Conversion modes**: 1). partial conversion(applyPartialConversion); 2). full conversion(applyFullConversion); 3). analysis conversion(applyAnalysisConversion).
+* **Conversion Target**:
+  * a formal definition of what is considered to be legal during the conversion process.
+  * operations mark: 
+    1. Legal: every instance of a given operation is legal;
+    2. Dynamic: only some instances of a given operation are legal.
+    3. Illegal: no instance of a given operation is legal, i.e., must be converted.
+  * addLegalDialect, addLegalOp, addDynamicallyLegalDialect, addDynamicallyLegalOp, markUnknownOpDynamicallyLegal, addIllegalDialect, addIllegalOp.
+* **Conversion Patterns**:
+  * a set of legalization patterns must be provided to transform illegal operations into legal ones. 
+  * class **ConversionPattern**, addtional args for matchAndRewrite & rewrite methods, i.e., list of operands that the operation should use after conversion. 
+* **Type Conversion**:
+  * A **TypeConverter** may be used to convert the signatures of block arguments and regions, to define the expected inputs types of the pattern, and to reconcile type differences in general.
+  * A conversion describes how a given illegal source Type should be converted to N target types, addConversion.
+  * A materialization describes how a set of values should be converted to a single value of a desired type. A materialization can produce IR.
+    * Argument Materialization
+    * Source Materialization
+    * Target Materialization
