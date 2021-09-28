@@ -148,3 +148,23 @@
     * Argument Materialization
     * Source Materialization
     * Target Materialization
+
+## Pass Infrastructure
+* **Operation Pass**:
+  * Op-Specfic: operates explicitly on a given operation type. Inherit **OperationPass** and provide operation type, override the **runOnOperation** method.
+  * Op-Agnostic: operates on the operation type of the pass manager that it is added to. Inherit **OperationPass**, override the **runOnOperation** method.
+* **Analysis Management**:
+  * In MLIR, analyses are not passes but free-standing classes that are computed lazily on-demand and cached to avoid unnecessary recomputation. 
+  * OperationPass class provides utilities for querying and preserving analyses:
+    * getAnalysis<>, getCachedAnalysis<>, getCachedParentAnalysis<>, getCachedChildAnalysis<>, getChildAnalysis<>.
+* **Pass Manager**:
+  * The PassManager class acts as the top-level entry point, and contains various configurations used for the entire pass pipeline. The OpPassManager class is used to schedule passes to run at a specific level of nesting.
+  * **OpPassManager**: collection of passes to execute on an operation of a specfic type. **addPass** to add to pass manager, **nest** to handle nested structure.
+  * **Dynamic Pass Pipelines**: In some situations it may be useful to run a pass pipeline within another pass.
+  * **Pass Statistics**: Statistics are a way to keep track of what the compiler is doing and how effective various transformations are. added to a pass by using the **Pass::Statistic** class.
+  * **Pass Registration**: PassRegistration class, this mechanism allows for registering pass classes.
+  * PassPipelineRegistration class for pass pipeline regsiteration.
+* **Declarative Pass Specification**:
+  * Using the **gen-pass-decls** generator, we can generate most of the boilerplate above automatically. This generator takes as an input a -name parameter, that provides a tag for the group of passes that are being generated.
+* **Pass Intrucmentation**:
+  * MLIR provides a customizable framework to instrument pass execution and analysis computation, via the PassInstrumentation class.
