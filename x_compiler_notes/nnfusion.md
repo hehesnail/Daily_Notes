@@ -1,4 +1,4 @@
-## NNFusion(Rammer osdi20) Notes
+## NNFusion(Rammer) Notes
 
 This markdown contain several personal thinking about NNFusion framework.
 
@@ -26,15 +26,72 @@ First, we need to locate the related classes in the source code, from the github
 | rTask           | BlockExecutorInstruction | src/nnfusion/engine/pass/graph/blockfusion/common.hpp |
 | vDevice         | BlockParallelDevice | src/nnfusion/engine/pass/graph/blockfusion/block_parallel_device.hpp |
 
+Key data structure defs:
+
+```c++
+// rTask, the rTask mainly maintain a be_id, like task_id in paper
+class BlockExecutorInstruction
+{
+public:
+    BlockExecutorInstruction(int _be_id)
+        : be_id(_be_id)
+    {
+    }
+    virtual ~BlockExecutorInstruction() = default;
+
+public:
+    int be_id; // bind to which block executor
+};
+
+// rOperator, not an actual operator, auto-gen kernel code via operator template codes
+class BlockCudaEmitter : public CudaEmitter
+{
+public:
+    BlockCudaEmitter(shared_ptr<KernelContext> ctx)
+        : CudaEmitter(ctx)
+        , num_local_thread_sync(0)
+        , shared_memory_size(0)
+        , is_emitting_block_kernel(false)
+    {
+    }
+    // xxxxx
+private:
+    size_t num_local_thread_sync;
+    size_t shared_memory_size;
+    bool is_emitting_block_kernel;
+    FunctionUnit_p m_block_function_unit;
+};
+
+
+using BEInstruction_p = std::shared_ptr<BlockExecutorInstruction>;
+using BlockKernel_p = std::shared_ptr<BlockCudaEmitter>;
+
+// rProgram, contain both rOperator and rTasks, rOperator contains many rTasks
+class BlockExecutorProgram
+{
+public:
+    size_t num_bes;
+    std::vector<std::vector<BEInstruction_p>> block_executor_instructions;
+    std::vector<BlockKernel_p> block_kernels; // (key, value): 
+                                                // (kernel_id, BlockCudaEmitter)
+};
+
+using BEProgram_p = std::shared_ptr<BlockExecutorProgram>;
+```
+
 The Engine add **BlockFusion** pass to the whole passes. Engine -> BlockFusion -> BlockFuseOptimizer.Optimize().
 
-**Optimize**: ---> WaveFront Schedule Policy in the paper, Optimize <--->  Schedule(G, D)
+**Optimize**: 
+
+---> WaveFront Schedule Policy in the paper, Optimize <--->  Schedule(G, D)
 
 In the optimize process, the corresponding map is shown below:
 
 ExtractFusionGroups + SplitGroups ---> WaveFront, i.e., get the wavefront of DFG.
 
-MergeGroups + virtual device schedule_kernel ---> ScheduleWave and exec time comparision
+MergeGroups ---> still an exprimental option.
+
+for wavefront operators, FuseGroupOnGraph ---> Inner schedule process.
 
 ```c++
 class BlockFuseOptimizer
@@ -48,7 +105,7 @@ class BlockFuseOptimizer
 ```
 * ExtractFusionGroups:
     ```c++
-    // defs of fusion group
+    // defs of fusion group, a fusion group corresponds to a wavefront 
     struct FusionGroup
     {
         // key data members
@@ -56,7 +113,7 @@ class BlockFuseOptimizer
         bool merge;
         std::vector<size_t> nodes;
         std::vector<size_t> sub_group;
-        std::vector<float> duration;
+        std::vector<float> duration;    // commonly the duration is 10 in src, 
         std::vector<std::shared_ptr<KernelEmitter>> block_kernels;
     };
     // defs of tagnode
@@ -84,5 +141,64 @@ class BlockFuseOptimizer
 * MergeGroups(optional)
     * **Key Function**: for the groups which can be merged, profile the merged group and two groups to get the time, if merged group is fast, merge the group.
 
+**Abstracition of BlockParallelDevice(vDevice)**
+```c++
+class BlockParallelDevice
+{
+public:
+    using Pointer = shared_ptr<BlockParallelDevice>;
+    BlockParallelDevice(size_t _num_bes,
+                        BlockKernelSchedulePolicy _policy = BlockKernelSchedulePolicy::DEFAULT)
+    {
+        create_device(_num_bes, _policy);
+    }
+    BlockParallelDevice(size_t _num_bes, std::shared_ptr<BlockKernelScheduler> _scheduler)
+    {
+        create_device(_num_bes, _scheduler);
+    }
+    // xxxxxx
+private:
+    size_t num_bes;
+    std::map<std::string, int> kernel_name_id_map;
+    std::vector<std::vector<BEInstruction_p>> block_executors;
+    std::vector<int> block_executor_steps;
+    std::vector<BlockKernel_p> block_kernels;         // (key, value): (kernel_id, BlockCudaEmitter)
+    std::vector<KernelMetric_p> block_kernel_metrics; // (key, value): (kernel_id, kernel_metric)
+    std::shared_ptr<BlockKernelScheduler> scheduler;
+};
+```
+
 * FuseGroupOnGraph  
-    * TODO, figure the how the virtual parallel device schedule results affect the further passes.
+    * Start from an wavefront group G, create the BlockParallelDevice to schedule these operators & rtasks.
+        ```c++
+        // codegen for the block fusion node, 1024 stands for the max number of block per kernel
+        auto virtual_device_p =
+            std::make_shared<BlockParallelDevice>(DEFAULT_BE, BlockKernelSchedulePolicy::RANGE);
+        ```
+    * Key data structure, the BlockKernelScheduler & RangeBlockKernelScheduler.
+        ```c++
+        class BlockKernelScheduler{
+        public:
+            using Pointer = shared_ptr<BlockKernelScheduler>;
+            BlockKernelScheduler(int _num_bes){
+                num_bes = _num_bes;
+                schedule_kernel_log.clear();
+            }
+            // xxxxxx
+        protected:
+            int num_bes;
+            std::map<int, BlockKernelScheduleRecord> schedule_kernel_log;
+        };
+        ```
+        ```c++
+        class RangeBlockKernelScheduler : public BlockKernelScheduler {
+        public:
+            RangeBlockKernelScheduler(int _num_bes)
+                : BlockKernelScheduler(_num_bes){
+                be_lane.resize(num_bes);
+            }
+            // xxxxx
+        private:
+            std::vector<std::vector<int>> be_lane; // -1 indicates sync, kernel_id indicates kernel running
+        };
+        ```
