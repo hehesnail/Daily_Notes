@@ -12,7 +12,7 @@ The main goal is to answer the following questions:
 ### KQ1: Overall workflow of nnfusion
 
 <div align="center">
-<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/nnfusion.png" width="60%" height="60%" /> 
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/nnfusion.png" width="100%" height="100%" /> 
 </div>
 
 ### KQ2: rOperator/rTask/rProgram implemented mechanism
