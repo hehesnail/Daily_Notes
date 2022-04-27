@@ -321,5 +321,5 @@
 * **TODO VTA Runtime**
 * **TODO VTA Passes**
 
-### **2021.8**
+### **CUDA Support**
 * **TODO CUDA CodeGen Support** 
