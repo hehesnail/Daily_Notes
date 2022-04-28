@@ -1,11 +1,11 @@
-## Understanding Reuse, Performance, and Hardware Cost of DNN Dataflows: A Data-Centric Approach Using MAESTRO (MICRO 2020)
+## Understanding Reuse, Performance, and Hardware Cost of DNN Dataflows: A Data-Centric Approach Using MAESTRO (MICRO 2019)
 
 Aspect: Analytic cost model for spatial accelerator
 
 ### Spatial Accelerator & Dataflow
 
 <div align="center">
-<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/spatial_acc.png" width="100%" height="100%" /> 
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/spatial_acc.png" width="70%" height="70%" /> 
 </div>
 
 **Spatial DNN accelerators** employ hundreds of processing elements (PEs) to exploit inherent parallelism in DNN applications. PEs typically include scratchpad memories (L1) and ALUs that perform multiply-accumulate operations (MACs). To reduce energy and time-consuming DRAM accesses, most DNN accelerators also include a shared scratchpad buffer (L2) large enough to stage data to feed all the PEs. Shared L2 buffer and PEs are interconnected with a network-on-chip(NoC).
@@ -29,7 +29,7 @@ Aspect: Analytic cost model for spatial accelerator
 temporal sources
 
 <div align="center">
-<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig1.png" width="100%" height="100%" /> 
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig1.png" width="70%" height="70%" /> 
 </div>
 
 ### Data-Centric Representation
@@ -47,40 +47,136 @@ Target of dataflow:
 ### Hardware Implementation of Reuse
 
 <div align="center">
-<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig3.png" width="100%" height="100%" /> 
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig3.png" width="70%" height="70%" /> 
 </div>
 
 ### MAESTRO Framework
 
 <div align="center">
-<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig4.png" width="100%" height="100%" /> 
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig4.png" width="70%" height="70%" /> 
 </div>
 
 ### Experiments - Dataflow tradeoffs
 
 <div align="center">
-<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig5.png" width="100%" height="100%" /> 
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig5.png" width="70%" height="70%" /> 
 </div>
 
 <div align="center">
-<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig6.png" width="100%" height="100%" /> 
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig6.png" width="70%" height="70%" /> 
 </div>
 
 <div align="center">
-<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig7.png" width="100%" height="100%" /> 
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig7.png" width="70%" height="70%" /> 
 </div>
 
 ### Experiments - Hardware Design-Parameters and Implementation Analysis
 
 <div align="center">
-<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig8.png" width="100%" height="100%" /> 
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig8.png" width="70%" height="70%" /> 
 </div>
 
 ### Furture direction
 Plan to leverage MAESTRO to implement a **dataflow auto-tuner** to find an optimal dataflow on the specified DNN model and hardware configuration. With the optimal dataflow, we plan to extend our infrastructure to **automatically generate RTL**, facilitating end-to-end DNN acceleration flow.
 
-## LISA: Graph Neural Network based Portable Mapping on Spatial Accelerators (HPCA 2022)
-
 ## Union: A Unified HW-SW Co-Design Ecosystem in MLIR for Evaluating Tensor Operations on Spatial Accelerators (PACT 2021)
 
+### Contributions
+* provide a plug-and-play unified ecosystem to quickly evaluate tensor operations in various domains such as ML and HPC on spatial accelerators leveraging the MLIR infrastructure.
+* introduce new unified abstractions to describe tensor operations and their mappings on spatial accelerators to integrate different mappers and cost models.
+* introduce operation-level/loop-level analysis to identify operations to be evaluated with the target spatial accelerator using a cost model.
+
+### Framework
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/union_fig1.png" width="70%" height="70%" /> 
+</div>
+
+### Union Abstractions
+
+Weakness of compute-centric reprensentation
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/union_fig2.png" width="70%" height="70%" /> 
+</div>
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/union_fig3.png" width="70%" height="70%" /> 
+</div>
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/union_fig4.png" width="70%" height="70%" /> 
+</div>
+
 ## METRO: A Software-Hardware Co-Design of Interconnections for Spatial DNN Accelerators (arxiv 2021)
+
+Basic idea: decoupling the traffic scheduling policies from hardware fabrics and moving them to the software level.
+
+Aspect: NoC HW/SW co-design.
+
+### Contributions
+* identify the inefficiency of traditional NoCs and clarify their fundamental drawbacks.
+* propose, design, and implement METRO , a software-hardware co-designed interconnection to achieve higher data transmission efficiency.
+* up to 73.6% overall processing time reduction.
+
+### Tiled Spatial DNN Accelerators
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/metro_fig1.png" width="70%" height="70%" /> 
+</div>
+
+As the computation capacity of a spatial accelerator scales up, processing a single DNN layer using all tiles is becoming less efficient.
+
+Thus, needs to process multiple layers from a DNN model on high throughput spatial accelerator simultaneously. It means that a spatial accelerator is partitioned into multiple disjoint regions, which may operate under different dataflows. Thus, tiles in these regions may also need different interconnections.
+
+### Traffic types & Contention
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/metro_fig2.png" width="70%" height="70%" /> 
+</div>
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/metro_fig3.png" width="70%" height="70%" /> 
+</div>
+
+### METRO Overview
+
+* Context infos: 1) the source and the destination of each traffic pattern and 2) the timing when each traffic pattern is issued.
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/metro_fig4.png" width="70%" height="70%" /> 
+</div>
+
+* Software traffic scheduling framework
+  * Input: the workload descriptions and dataflow specification. 
+  * Routing problem: which paths do the traffic flows take from source to the destination.
+  * Flow control problem: when are the flows injected into the network.
+  * Output: resulted scheduling policies are dumped as configurations of hardware fabrics.
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/metro_fig5.png" width="70%" height="70%" /> 
+</div>
+
+* Dual-Phase Routing
+  * “Hub” selection: the tile which has the minimum Manhattan distance from the source (for Multicast) or destination (for Reduce).
+  * Phase-1 Routing: Evolutionary Algorithm (EA) to search a sequence of intermediate nodes, and employ the X-Y routing to determine the path between two intermediate nodes.
+  * Phase-2 Routing: BFS to build the spanning tree rooted from the “hub” for the lowest propagation depth, perform tree-based multicast distribute the flow to all destinations.
+
+* Hardware Design
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/metro_fig6.png" width="70%" height="70%" /> 
+</div>
+
+### Evaluation Setup
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/metro_fig7.png" width="70%" height="70%" /> 
+</div>
+
+* Estimate the computation latency of processing tiles: Timeloop
+* Cost model of tiles in terms of area and energy: Accelergy
+* Estimate the energy and area of primary logical components: gem5-Alladin
+* Evaluate the SRAM buffers: CACTI
+* Hardware parameters: NVDLA Cores, scale up to 512 GOPs.
+* Estimate the performance of traditional on-chip networks: Booksim2
