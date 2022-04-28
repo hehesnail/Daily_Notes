@@ -5,7 +5,7 @@ Aspect: Analytic cost model for spatial accelerator
 ### Spatial Accelerator & Dataflow
 
 <div align="center">
-<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/../../../../../../../../imgs/co_design_imgs/spatial_acc.png" width="100%" height="100%" /> 
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/spatial_acc.png" width="100%" height="100%" /> 
 </div>
 
 **Spatial DNN accelerators** employ hundreds of processing elements (PEs) to exploit inherent parallelism in DNN applications. PEs typically include scratchpad memories (L1) and ALUs that perform multiply-accumulate operations (MACs). To reduce energy and time-consuming DRAM accesses, most DNN accelerators also include a shared scratchpad buffer (L2) large enough to stage data to feed all the PEs. Shared L2 buffer and PEs are interconnected with a network-on-chip(NoC).
@@ -29,7 +29,7 @@ Aspect: Analytic cost model for spatial accelerator
 temporal sources
 
 <div align="center">
-<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/../../../../../../../../imgs/co_design_imgs/maestro_fig1.png" width="100%" height="100%" /> 
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig1.png" width="100%" height="100%" /> 
 </div>
 
 ### Data-Centric Representation
@@ -47,14 +47,37 @@ Target of dataflow:
 ### Hardware Implementation of Reuse
 
 <div align="center">
-<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/../../../../../../../../imgs/co_design_imgs/maestro_fig3.png" width="100%" height="100%" /> 
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig3.png" width="100%" height="100%" /> 
 </div>
 
 ### MAESTRO Framework
 
 <div align="center">
-<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/../../../../../../../../imgs/co_design_imgs/maestro_fig4.png" width="100%" height="100%" /> 
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig4.png" width="100%" height="100%" /> 
 </div>
+
+### Experiments - Dataflow tradeoffs
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig5.png" width="100%" height="100%" /> 
+</div>
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig6.png" width="100%" height="100%" /> 
+</div>
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig7.png" width="100%" height="100%" /> 
+</div>
+
+### Experiments - Hardware Design-Parameters and Implementation Analysis
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/maestro_fig8.png" width="100%" height="100%" /> 
+</div>
+
+### Furture direction
+Plan to leverage MAESTRO to implement a **dataflow auto-tuner** to find an optimal dataflow on the specified DNN model and hardware configuration. With the optimal dataflow, we plan to extend our infrastructure to **automatically generate RTL**, facilitating end-to-end DNN acceleration flow.
 
 ## LISA: Graph Neural Network based Portable Mapping on Spatial Accelerators (HPCA 2022)
 
