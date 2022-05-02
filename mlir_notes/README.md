@@ -168,3 +168,57 @@
   * Using the **gen-pass-decls** generator, we can generate most of the boilerplate above automatically. This generator takes as an input a -name parameter, that provides a tag for the group of passes that are being generated.
 * **Pass Intrucmentation**:
   * MLIR provides a customizable framework to instrument pass execution and analysis computation, via the PassInstrumentation class.
+
+## Traits
+
+Check the details in official docs: https://mlir.llvm.org/docs/Traits/
+
+**Definition:** 
+  * **Traits** are a mechanism which abstracts implementation details and properties that are common across many different attributes/operations/types/etc. **Traits** may be used to specify special properties and constraints of the object, including whether an operation has side effects or that its output has the same type as the input. 
+
+**Using trait:** 
+  * Traits may be used to provide additional methods, static fields, or other information directly on the concrete object. Traits internally become Base classes of the concrete operation, so all of these are directly accessible. To expose this information opaquely to transformations and analyses, interfaces may be used.
+  * To query if a specific object contains a specific trait, the **hasTrait<>** method may be used. This takes as a template parameter the trait class, which is the same as the one passed when attaching the trait to an operation.
+
+## Interfaces
+
+Check the details from official docs: https://mlir.llvm.org/docs/Interfaces/
+ 
+Common used interfaces defined in mlir/include/mlir/interfaces
+
+**Motivation**: Interfaces provide a generic way of interacting with the IR. Goal: be able to express transformation/analyses in terms of interfaces without encoding specific knowledge about exact operation or dialect involved. Decoupled way.
+
+**Dialect Interfaces:** 
+  * Dialect interfaces are generally useful for transformation passes or analyses that want to operate generically on a set of attributes/operations/types, which may be defined in different dialects.
+  * Generally involve wide coverage over an entrire dialect, e.g., inline.
+  * A dialect interface can be defined by inheriting from the CRTP base class **DialectInterfaceBase::Base<>**. The interfaces defined by a dialect are registered via **addInterfaces<>**, a similar mechanism to Attributes, Operations, Types, etc. 
+
+**Attribute/Operation/Type Interfaces**:
+  * registered at the level of a specific attribute/operation/type, provide access to derived objects by providing a virtual interface that must be implemented.
+  * defined by overriding AttrInterface, OpInterface, or TypeInterface respectively.
+  * To attach an interface to an object, the base interface classes provide a Trait class that can be appended to the trait list of that object.
+  * ODS also allows for generating declarations for the InterfaceMethods of an operation if the operation specifies the interface with **DeclareOpInterfaceMethods**.
+
+Traits are operation properties that affect syntax or semantics. MLIR C++ models various traits in the **mlir::OpTrait** namespace.
+
+Both operation traits, interfaces, and constraints involving multiple operands/attributes/results are provided as the third template parameter to the Op class. They should be deriving from the **OpTrait** class. 
+
+## Attributes and Types
+
+**Attributes**: Attributes are the mechanism for specifying constant data on operations in places where a variable is never allowed.
+
+**Types**: Every SSA value, such as operation results or block arguments, in MLIR has a type defined by the type system. MLIR has an open type system with no fixed list of types, and there are no restrictions on the abstractions they represent.
+
+For official docs: check https://mlir.llvm.org/docs/AttributesAndTypes/
+
+For builtin attrs & types: check https://mlir.llvm.org/docs/Dialects/Builtin/
+
+**Constraints**:
+  * Constraint is a core concept in table-driven operation definition: operation verification and graph operation matching are all based on satisfying constraints. 
+  * For **constraints**, ref to mlir/include/mlir/IR/OpBase.td
+  * **Single-entity constraint**: Constraints scoped to a single operand, attribute, or result are specified at the entity’s declaration place 
+  * **Multi-entity constraint**: involving more than one operand/attribute/result are quite common on operations. Specified as the Op class template parameter as described in Operation traits and constraints. Modeled as **PredOpTrait**.
+  * **Trait**: Traits are intrinsic properties of the operation like having side effect or not, commutative or not, whether is a terminator, etc. Modeled as **NativeOpTrait**.
+  * **Specify new constraint**: https://mlir.llvm.org/docs/OpDefinitions/#operation-traits-and-constraints
+
+
