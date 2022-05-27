@@ -1,4 +1,55 @@
+## HASCO: Towards Agile HArdware and Software CO-design for Tensor Computation (ISCA 2021)
+
+Basic idea: develop a holistic solution that is a combination of hardware acceleration and software mapping.
+
+Aspect: tensor computation(intrinsic) HW/SW Co-design.
+
+### Contributions:
+1. propose HASCO to co-design hardware accelerators and software mapping in concert. HASCO offers a holistic solution to tensor computations.
+2. propose efficient algorithms to explore the hardware-software interface (tensorize).
+3. develop heuristic, Q-learning, and Bayesian optimization algorithms to explore the design spaces efficiently.
+
+### Framework:
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/hasco_fig1.png" width="70%" height="70%" /> 
+</div>
+
+### HW/SW Partition
+1. Tensorize Choices
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/hasco_fig2.png" width="70%" height="70%" /> 
+</div>
+
+2. Partition Space Generation: lowers both tensor computations and intrinsics into TSTs and performs a two-step approach: index matching and structure matching
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/hasco_fig3.png" width="70%" height="70%" /> 
+</div>
+
+### Hardware Generation
+1. use a sequence of the parametric hardware primitives to form the skeleton of a spatial accelerator, and the primitive factors (accelerator parameters) compose the design space.
+2. design space is composed of the following parameters: [scratchpad size, # scratchpad banks, local memory size, burst length of DMAC, maximal transfer size of DMAC, dataflow, PE array shape].
+3. develop a Chisel generator in HASCO, which translates the four common intrinsics (GEMV, GEMM, convolution, and dot product) and the hardware primitives into spatial accelerators.
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/hasco_fig4.png" width="70%" height="70%" /> 
+</div>
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/hasco_fig5.png" width="70%" height="70%" /> 
+</div>
+
+### Expriments
+1. Benchmark: MTTKRP, TTM, CONV2D, GEMM.
+2. Hardware: Gemmini to generate GEMM accelerators. We use the Rocket Chip generator and our Chisel generator to build accelerators with the other intrinsics.
+3. compare HASCO with AutoTVM and an accelerator library.
+4. Metrics: Maestro and prototype accelerators as Rocket Chip SoCs on a Xilinx VU9P FPGA board.
+
 ## Understanding Reuse, Performance, and Hardware Cost of DNN Dataflows: A Data-Centric Approach Using MAESTRO (MICRO 2019)
+
+Basic idea: the DNN dataflows for spatial acceleartor is predictiable if carefully analyze the data reuse patterns.
 
 Aspect: Analytic cost model for spatial accelerator
 
@@ -80,6 +131,10 @@ Target of dataflow:
 Plan to leverage MAESTRO to implement a **dataflow auto-tuner** to find an optimal dataflow on the specified DNN model and hardware configuration. With the optimal dataflow, we plan to extend our infrastructure to **automatically generate RTL**, facilitating end-to-end DNN acceleration flow.
 
 ## Union: A Unified HW-SW Co-Design Ecosystem in MLIR for Evaluating Tensor Operations on Spatial Accelerators (PACT 2021)
+
+Basic idea: current analytic cost model for spatital accelerator lies in single domain which is not practical in other domain, thus based on mlir, one can reuse the already aviable models via unified IR.
+
+Aspect: Analytic model for spatial accelerator reusing.
 
 ### Contributions
 * provide a plug-and-play unified ecosystem to quickly evaluate tensor operations in various domains such as ML and HPC on spatial accelerators leveraging the MLIR infrastructure.
@@ -180,3 +235,5 @@ Thus, needs to process multiple layers from a DNN model on high throughput spati
 * Evaluate the SRAM buffers: CACTI
 * Hardware parameters: NVDLA Cores, scale up to 512 GOPs.
 * Estimate the performance of traditional on-chip networks: Booksim2
+
+## AMOS: Enabling Automatic Mapping for Tensor Computations On Spatial Accelerators with Hardware Abstraction (ISCA 2022)
