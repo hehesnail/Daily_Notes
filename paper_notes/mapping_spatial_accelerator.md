@@ -4,12 +4,12 @@ Basic idea: develop a holistic solution that is a combination of hardware accele
 
 Aspect: tensor computation(intrinsic) HW/SW Co-design.
 
-### Contributions:
+### Contributions
 1. propose HASCO to co-design hardware accelerators and software mapping in concert. HASCO offers a holistic solution to tensor computations.
 2. propose efficient algorithms to explore the hardware-software interface (tensorize).
 3. develop heuristic, Q-learning, and Bayesian optimization algorithms to explore the design spaces efficiently.
 
-### Framework:
+### Framework
 
 <div align="center">
 <img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/hasco_fig1.png" width="70%" height="70%" /> 
@@ -41,7 +41,7 @@ Aspect: tensor computation(intrinsic) HW/SW Co-design.
 <img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/hasco_fig5.png" width="70%" height="70%" /> 
 </div>
 
-### Expriments
+### Experiments
 1. Benchmark: MTTKRP, TTM, CONV2D, GEMM.
 2. Hardware: Gemmini to generate GEMM accelerators. We use the Rocket Chip generator and our Chisel generator to build accelerators with the other intrinsics.
 3. compare HASCO with AutoTVM and an accelerator library.
@@ -237,3 +237,69 @@ Thus, needs to process multiple layers from a DNN model on high throughput spati
 * Estimate the performance of traditional on-chip networks: Booksim2
 
 ## AMOS: Enabling Automatic Mapping for Tensor Computations On Spatial Accelerators with Hardware Abstraction (ISCA 2022)
+
+Basic idea: for isa mapping, its hard to utilize the intrinsic provided by the hardware lacks of computation and memory abstraction.
+
+Aspect: auto-tensorization
+
+### Contributions
+1. propose a hardware abstraction to formally define the spatial hardware compute and memory behavior and the mapping from software to hardware.
+2. propose a fully automatic solution to the ISA-aware mapping problem by designing a two-step mapping generation flow, a novel validation algorithm, and a performance model for exploration.
+3. propose a compilation framework called AMOS that supports a wide variety of tensor applications on spatial accelerators.
+
+### Framework
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/amos_fig1.png" width="70%" height="70%" /> 
+</div>
+
+### Hardware Abstraction
+#### Compute Abstraction
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/amos_fig2.png" width="70%" height="70%" /> 
+</div>
+
+#### Memory Abstraction
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/amos_fig3.png" width="70%" height="70%" /> 
+</div>
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/amos_fig4.png" width="70%" height="70%" /> 
+</div>
+
+### Software-Hardware Mapping
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/amos_fig5.png" width="70%" height="70%" /> 
+</div>
+
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/amos_fig6.png" width="70%" height="70%" /> 
+</div>
+
+#### Mapping validation algorithm
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/amos_fig7.png" width="70%" height="70%" /> 
+</div>
+
+### Exploration of Mapping and Schedule
+#### Performance model
+<div align="center">
+<img src="https://github.com/hehesnail/Daily_Notes/blob/main/imgs/co_design_imgs/amos_fig8.png" width="70%" height="70%" /> 
+</div>
+
+The maximum of compute latency, read latency, and store latency dominates the overall latency (fully pipelined execution), and the compute latency is either the latency of inner level computation (level l − 1) or the latency of intrinsic (if l = 0). The latency of intrinsic is a fixed value, which can be estimated through hardware models such as Maestro and TENET.
+
+#### Search process
+Use genetic algorithms in tuning engine. Integrate this performance model with existing optimization frameworks to explore the combined search space of mappings and optimization schedules.
+
+1. AMOS enumerates all the possible mappings through our mapping generation and validation process and randomly assigns different schedule parameters to each mapping candidate.
+2. these mappings along with their schedules are evaluated by our performance
+model.
+3. According to the evaluated results, AMOS chooses a set of good mappings and mutates their schedules to produce new choices to evaluate.
+
+### Implementations & Experiments
+1. Two new IR nodes for Compute and Memory. 
+2. Compute(Tensor, Expr, Array<Expr\>). Tensor -> dest buffer to store results, Expr -> arithmetic operations, Array<Expr\> -> intrinsic iterations. 
+3. Memory(Tensor, String, BufferLoad). Tensor -> dest buffer of mem access, String -> buffer scope(global, shared, register), BufferLoad -> source buffer and load indices.
+4. Evaluate on mma_sync in TensorCore GPU (V100 and A100), _mm512_dpbusds_epi32 in Intel CPU with AVX-512 (Xeon(R) Silver 4110), and arm_dot in Mali Bifrost GPU.
+5. Achieves more than 2.50× speedup to hand-optimized libraries(cuDNN) on Tensor Core, 1.37× speedup to TVM on vector units of Intel CPU for AVX-512, and up to 25.04× speedup to AutoTVM on dot units of Mali GPU.
