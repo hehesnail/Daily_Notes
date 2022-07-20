@@ -90,3 +90,29 @@
 |VELTAIR: towards high-performance multi-tenant deep learning services via adaptive compilation and scheduling | schedule | an adaptive scheduling scheme to ensure resource usage efficiency and reduceconflict rate, adaptive compilation strategy which dynamically pick a program with proper exclusive and shared resource usage | 
 |Vector instruction selection for digital signal processors using program synthesis | auto vectorization |  a new algorithm that first abstracts the target platform instructions into high-level uber-instructions, then program synthesis is used to lift input code and lower to machine code.|
 |Breaking the computation and communication abstraction barrier in distributed machine learning workloads | distributed training/inference, compiler based optimization | CoCoNet: 1). DSL to describle computation and communications, 2). optimization passes, 3). compiler for generating comm & comp optimized gpu kernels. |
+
+## PLDI 2022
+
+| Title                         |    Field           |   Outcome |
+|------                         | ----               | ---       |
+|FreeTensor: A Free-Form DSL with Holistic Optimizations for Irregular Tensor Programs| ai compiler, dsl | Since operator-based programming shows significant limitations for irregular patterns, thus FreeTensor supports redundancy-avoid programming by introducing fine-grained control flow.|
+|Exocompilation for Productive Programming of Hardware Accelerators|op schedule, compiler |Exo, based on the principle of exocompilation: externalizing target-specific code generation support and optimization policies to user-level code. Exo allows custom hardware instructions, specialized memories, and accelerator configuration state to be defined in user libraries. |
+|DISTAL: The Distributed Tensor Algebra Compiler| distributed compiler |DISTAL, a compiler for dense tensor algebra that targets modern distributed and heterogeneous systems.|
+|An Asymptotic Cost Model for Autoscheduling Sparse Tensor Programs|cost model, sparse tensor auto-schedule |Present the first automatic asymptotic scheduler for sparse tensor programs.|
+|All You Need Is Superword-Level Parallelism: Systematic Control-Flow Vectorization with SLP|auto vectorization|SuperVectorization, a new vectorization framework that generalizes SLP vectorization to uncover parallelism that spans different basic blocks and loop nests.|
+
+## PLDI 2021
+
+| Title                         |    Field           |   Outcome |
+|------                         | ----               | ---       |
+|AKG: Automatic Kernel Generation for Neural Processing Units using Polyhedral Transformations |kernel gen, ai compiler | AKG leverages polyhedral schedulers to perform a much wider class of transformations, and extends the semantics of the polyhedral representation to combine complex tiling techniques and hierarchical fusion strategies. |
+|DNNFusion: Accelerating Deep Neural Networks Execution with Advanced Operator Fusion| graph optimization |  To address this challenge, this paper proposes a novel and extensive loop fusion framework called DNNFusion.|
+|DeepCuts: a deep learning optimization framework for versatile GPU workloads | gpu kernel gen |  DeepCuts analyzes the DL workload, groups multiple DL operations into a single GPU kernel, and generates optimized GPU kernels considering kernel implementation parameters and GPU architecture parameters.|
+
+## PLDI 2020 & 2019
+
+| Title                         |    Field           |   Outcome |
+|------                         | ----               | ---       |
+|LLHD: A Multi-level Intermediate Representation for Hardware Description Languages |mlir, hardware ir| propose the LLHD multilevel IR. LLHD is designed as simple, unambiguous reference description of a digital circuit, yet fully captures existing HDLs.|
+|Co-optimizing Memory-Level Parallelism and Cache-Level Parallelism| compiler memory optimization| propose compiler support that optimizes both the latencies of last-level cache (LLC) hits and the latencies of LLC misses.|
+|Compiling KB-Sized Machine Learning Models to Tiny IoT Devices| ai compiler, iot|SeeDot, a domain-specific language to express ML inference algorithms and a compiler that compiles SeeDot programs to fixed-point code that can efficiently run on constrained IoT devices.|
