@@ -90,6 +90,8 @@
 |Vector instruction selection for digital signal processors using program synthesis | auto vectorization |  a new algorithm that first abstracts the target platform instructions into high-level uber-instructions, then program synthesis is used to lift input code and lower to machine code.|
 |Breaking the computation and communication abstraction barrier in distributed machine learning workloads | distributed training/inference, ai compiler | CoCoNet: 1). DSL to describle computation and communications, 2). optimization passes, 3). compiler for generating comm & comp optimized gpu kernels. |
 
+# PLDI
+
 ## PLDI 2022
 
 | Title                         |    Field           |   Outcome |
@@ -116,6 +118,7 @@
 |Co-optimizing Memory-Level Parallelism and Cache-Level Parallelism| compiler memory opt| propose compiler support that optimizes both the latencies of last-level cache (LLC) hits and the latencies of LLC misses.|
 |Compiling KB-Sized Machine Learning Models to Tiny IoT Devices| ai compiler, iot|SeeDot, a domain-specific language to express ML inference algorithms and a compiler that compiles SeeDot programs to fixed-point code that can efficiently run on constrained IoT devices.|
 
+# CGO
 ## CGO 2022
 
 | Title                         |    Field           |   Outcome |
@@ -138,3 +141,23 @@
 |Optimizing Ordered Graph Algorithms with GraphIt | graph compiler | DSL to simplify writing high-performance parallel ordered graph algorithms|
 |Automatic Generation of High-Performance Quantized Machine Learning Kernels| auto-kernel-gen, quantization| new automated approach to implementing quantized inference for machine learning models.|
 |ATMem: adaptive data placement in graph applications on heterogeneous memories | graph comp, NVM, memory management | ATMem—a runtime framework for adaptive granularity data placement optimization in graph applications. |
+
+# ATC
+
+| Title                         |    Field           |   Outcome |
+|------                         | ----               | ---       |
+|Whale: Efficient Giant Model Training over Heterogeneous GPUs| distributed training | Whale, a general and efficient distributed training framework for giant models, introduces two new high-level primitives to express all existing parallel strategies as well as their hybrids.|
+|PetS: A Unified Framework for Parameter-Efficient Transformers Serving|DL servering | PetS, the first unified framework for multi-task PETs serving, different PET tasks are expressed by a unified representation in the same framework, which enables flexible PET task management.|
+|Fine-tuning giant neural networks on commodity hardware with automatic pipeline model parallelism| pipeline parallelism | FTPipe, a system that explores a new dimension of pipeline model parallelism, making multi-GPU execution of fine-tuning tasks for giant neural networks readily accessible on commodity hardware|
+
+# CC
+
+| Title                         |    Field           |   Outcome |
+|------                         | ----               | ---       |
+|IR Design for Heterogeneity: Challenges and Opportunities | mlir | talk slides|
+|Integrating a Functional Pattern-Based IR into MLIR| mlir | RISE IR, the first time a practical integration of a functional pattern-based IR with other IRs and it enables the construction of sophisticated code generators for domain specific languages.|
+|One-Shot Tuner for Deep Learning Compilers | Auto tuning |One-Shot Tuner, take a neural predictor inspired approach to reduce the auto-tuning overhead and show that a performance predictor model trained prior to compilation can produce optimized tensor operation codes without repeated search and hardware  measurements. |
+|MLIR-based code generation for GPU tensor cores |mlir, gpu kernel-gen | build a transformation and lowering pipeline to automatically generate near-peak performance code for matrix-matrix multiplication |
+|Graph Transformations for Register-Pressure-Aware Instruction Scheduling| instruction schedule | propose graph transformations for the RP minimization objective |
+|Caviar: An E-Graph Based TRS for Automatic Code Optimization| term rewrite, e-graph | Caviar, an e-graphbased TRS for proving expressions within compilers. |
+|Automating reinforcement learning architecture design for code optimization | DL for compiler | SuperSonic, a new open-source framework to allow compiler developers to integrate RL into compilers easily. |
