@@ -140,7 +140,7 @@
 |StencilFlow: Mapping Large Stencil Programs to Distributed Spatial Computing Systems| stencil computation, distributed compiler, heter compilation| mapping directed acyclic graphs of heterogeneous stencil computations to spatial computing systems, assuming large input programs without an iterative component. |
 |Optimizing Ordered Graph Algorithms with GraphIt | graph compiler | DSL to simplify writing high-performance parallel ordered graph algorithms|
 |Automatic Generation of High-Performance Quantized Machine Learning Kernels| auto-kernel-gen, quantization| new automated approach to implementing quantized inference for machine learning models.|
-|ATMem: adaptive data placement in graph applications on heterogeneous memories | graph comp, NVM, memory management | ATMem—a runtime framework for adaptive granularity data placement optimization in graph applications. |
+|ATMem: adaptive data placement in graph applications on heterogeneous memories | graph computing, NVM, memory management | ATMem—a runtime framework for adaptive granularity data placement optimization in graph applications. |
 
 # ATC
 
@@ -161,3 +161,30 @@
 |Graph Transformations for Register-Pressure-Aware Instruction Scheduling| instruction schedule | propose graph transformations for the RP minimization objective |
 |Caviar: An E-Graph Based TRS for Automatic Code Optimization| term rewrite, e-graph | Caviar, an e-graphbased TRS for proving expressions within compilers. |
 |Automating reinforcement learning architecture design for code optimization | DL for compiler | SuperSonic, a new open-source framework to allow compiler developers to integrate RL into compilers easily. |
+
+# EuroSys
+## EuroSys 2020 & 2021
+| Title                         |    Field           |   Outcome |
+|------                         | ----               | ---       |
+|Balancing Efficiency and Fairness in Heterogeneous GPU Clusters for Deep Learning| schedule | Gandivafair, a distributed, fair share scheduler that balances conflicting goals of efficiency and fairness in GPU clusters for deep learning training. |
+|Subway: Minimizing Data Transfer during Out-of-GPU-Memory Graph Processing|graph computing | Subway, the first solution that only loads active edges of the graph to the GPU memory, design a fast subgraph generation algorithm with a simple yet efficient subgraph representation and a GPU-accelerated implementation. |
+|Peregrine: A Pattern-Aware Graph Mining System | graph computing | PEREGRINE, a pattern-aware graph mining system that directly explores the subgraphs of interest while avoiding exploration of unnecessary subgraphs, and simultaneously bypassing expensive computations throughout the mining process. |
+|Improving Resource Utilization by Timely Fine-Grained Scheduling| schedule | Ursa, enables the scheduler to capture accurate resource demands dynamically from the execution runtime and to provide timely, fine-grained resource allocation based on monotasks. |
+|Accelerating Winograd Convolutions using Symbolic Computation and Meta-programming| gpu kernel-gen | optimize Winograd convolutions based on symbolic computation, a system to automate the generation of efficient and portable Winograd convolution code for various GPUs.|
+|DGCL: An Efficient Communication Library for Distributed GNN Training| GNN opt | propose the distributed graph communication library (DGCL) for efficient GNN training on multiple GPUs.|
+|Seastar: Vertex-Centric Programming for Graph Neural Networks |GNN opt| Seastar system, a vertex-centric programming model for GNN training on GPU and provides idiomatic python constructs to enable easy development of novel homogeneous and heterogeneous GNN models. |
+|Profiling Dataflow Systems on Multiple Abstraction Levels|dataflow graph, profiling | profile compiling dataflow systems at higher abstraction levels. Our approach tracks the code generation process and aggregates profiling data to any abstraction level.|
+|Accelerating Graph Sampling for Graph Machine Learning using GPUs|GNN opt| NextDoor, employs a new approach to graph sampling that we call transit-parallelism, which allows load balancing and caching of edges|
+|Tahoe: Tree Structure-Aware High Performance Inference Engine for Decision Tree Ensemble on GPU |ML opt|Tahoe, rearranges tree nodes to enable efficient and coalesced memory accesses, also rearranges trees, such that trees with similar structures are grouped together in memory and assigned to threads in a balanced way.|
+|Tesseract: Distributed, General Graph Pattern Mining on Evolving Graphs| graph computing |  Tesseract scales out by decomposing a stream of graph updates into perupdate mining tasks and dynamically assigning these tasks to a set of distributed workers.|
+
+## EuroSys 2022
+| Title                         |    Field           |   Outcome |
+|------                         | ----               | ---       |
+|Unicorn: Reasoning about Configurable System Performance through the Lens of Causality |ML for Sys | Unicorn–a methodology that enables reasoning about configurable system performance with causal inference and counterfactual reasoning|
+|LiteReconfig: Cost and Content Aware Reconfiguration of Video Object Detection Systems for Mobile GPUs| schedule | LiteReconfig features a cost-benefit analyzer to decide which features to use, and which execution branch to run, at inference time. |
+|Fleche: An Efficient GPU Embedding Cache for Personalized Recommendations|memory management | Fleche uses one cache backend for all embedding tables to improve the total cache utilization, and merges small kernel calls into one unitary call to reduce the overhead of kernel maintenance. |
+|GNNLab: a factored system for sample-based GNN training over GPUs | GNN opt, training | GNNLab, a sample-based GNN training system in a single machine multi-GPU setup. |
+|Out-of-order backprop: an effective scheduling technique for deep learning | schedule, training | Out-of-order (ooo) back-prop, exploiting the dependencies of gradient computations, enables to reorder their executions to make the most of the GPU resources. |
+|D3: A Dynamic Deadline-Driven Approach for Building Autonomous Vehicles|Autonomous vehicles system | D3 (Dynamic Deadline-Driven), a novel execution model that centralizes the deadline management, and allows applications to adjust their computation by modeling missed deadlines as exceptions, design and implement ERDOS, an opensource realization of D3 for AV pipelines. |
+|Varuna: Scalable, Low-cost Training of Massive Deep Learning Models| schedule, DL training | Varuna a new system that enables training massive deep learning models on commodity networking, makes thrifty use of networking resources and automatically configures the user’s training job to efficiently use any given set of resources.|
