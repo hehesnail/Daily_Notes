@@ -90,6 +90,23 @@
 |Vector instruction selection for digital signal processors using program synthesis | auto vectorization |  a new algorithm that first abstracts the target platform instructions into high-level uber-instructions, then program synthesis is used to lift input code and lower to machine code.|
 |Breaking the computation and communication abstraction barrier in distributed machine learning workloads | distributed training/inference, ai compiler | CoCoNet: 1). DSL to describle computation and communications, 2). optimization passes, 3). compiler for generating comm & comp optimized gpu kernels. |
 
+## ASPLOS 2023
+
+| Title                         |    Field           |   Outcome |
+|------                         | ----               | ---       |
+|TensorIR: An Abstraction for Automatic Tensorized Program Optimization | tvm, ir design, auto-tensorization|TensorIR generalizes the loop nest representation used in existing machine learning compilers to bring tensor computation as the first-class citizen. TensorIR compilation automatically uses the tensor computation primitives for given hardware backends. |
+|FLAT: An Optimized Dataflow for Mitigating Attention Bottlenecks|attention opt, mapping| FLAT, a dataflow processes costly attention operations through a unique fusion mechanism, transforming the memory footprint quadratic growth to merely a linear one|
+|Homunculus: Auto-Generating Eficient Data-Plane ML Pipelines for Datacenter Networks|ML service, automated ML pipeline| Homunculus takes as input, the training data and accompanying network constraints, and automatically generates and installs a suitable model onto the underlying switching hardware|
+|Mobius: Fine Tuning Large-Scale Models on Commodity GPU Servers|distributed training|A novel pipeline parallelism scheme enabling heterogeneous memory for large-scale model training, while bringing fewer communications than existing systems|
+|Betty: Enabling Large-Scale GNN Training with Batch-Level Graph Partitioning|GNN training|Betty introduces two novel techniques, redundancy-embedded graph (REG) partitioning and memory-aware partitioning, to effectively mitigate the redundancy and load imbalances issues across the partitions.|
+|SparseTIR: Composable Abstractions for Sparse Compilation in Deep Learning|ir desing, sparse|a sparse tensor compilation abstraction that offers composable formats and composable transformations for deep learning workloads.|
+|Hidet: Task-Mapping Programming Paradigm for Deep Learning Tensor Programs|ai compiler, schedule|propose to embed the scheduling process into tensor programs and use dedicated mappings, called task mappings, to define the computation assignment and ordering directly in the tensor programs.|
+|TiLT: A Time-Centric Approach for Stream Query Optimization and Parallelization|stream process|TiLT, a novel intermediate representation (IR) that offers a highly expressive temporal query language amenable to effective query optimization and parallelization strategies.|
+|STI: Turbocharge NLP Inference at the Edge via Elastic Pipelining|edge inference|propose Speedy Transformer Inference (STI). Built on the key idea of maximizing IO/compute resource utilization on the most important parts of a model|
+|TelaMalloc: Efficient On-Chip Memory Allocation for Production Machine Learning Accelerators|memory management, ml compiler| demonstrate a new method for solving the memory allocation problem on machine learning accelerators. Our approach combines heuristics with a solver-based approach to explore a complex search space more efficiently|
+|WACO: Learning Workload-Aware Co-optimization of the Format and Schedule of a Sparse Tensor Program|sparse, cost model| present WACO, a novel method of co-optimizing the format and the schedule of a given sparsity pattern in a sparse tensor program|
+|Overlap Communication with Dependent Computation via Decomposition in Large Deep Learning Models|large model serving|a novel technique to effectively reduce its data communication overheads by overlapping communication with computation|
+
 # PLDI
 
 ## PLDI 2022
@@ -119,6 +136,17 @@
 |Compiling KB-Sized Machine Learning Models to Tiny IoT Devices| ai compiler, iot|SeeDot, a domain-specific language to express ML inference algorithms and a compiler that compiles SeeDot programs to fixed-point code that can efficiently run on constrained IoT devices.|
 
 # CGO
+
+## CGO 2023
+| Title                         |    Field           |   Outcome |
+|------                         | ----               | ---       |
+|Accelerating Deep Neural Networks on Mobile Multicore NPUs|SoCs, schedule|  propose parallelization and pipelining models for neural networks on mobile multicore NPU systems. We introduce key optimization criteria — data redundancy, data dependency, data reusability, data exchange and computation redundancy, and relevant optimizations such as stratum construction, halo exchange, and halo-first policy.|
+|Bridging Control-Centric and Data-Centric Optimization|ir design, mlir|Introducing data-centric optimizations to a standard multi-level compilation pipeline through an MLIR dialect|
+|Code Generation for In-Place Stencils|mlir|propose the first domain-specific code generator for iterative in-place stencils|
+|Flexer: Out-of-Order Scheduling for Multi-NPUs|inst schedule, ai compiler| Flexer, an out-of-order (OoO) scheduler that maximizes instruction-level parallelism and data reuse on such multi-NPU systems. |
+|Pin or Fuse? Exploiting Scratchpad Memory to Reduce Off-Chip Data Transfer in DNN Accelerators|schedule, ai compiler| propose a compiler technique to generate code that utilizes both pinning and fusion to minimize execution latency of a DNN model.|
+|To Pack or Not to Pack: A Generalized Packing Analysis and Transformation|Gemm opt, mlir|proposes GPAT, a generalized packing analysis and code transformation that applies packing, when beneficial, to a generic input loop nest.|
+
 ## CGO 2022
 
 | Title                         |    Field           |   Outcome |
